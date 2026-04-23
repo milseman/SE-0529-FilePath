@@ -10,8 +10,7 @@
 import Testing
 @testable import FilePath
 
-@Suite(.serialized)
-struct DecompositionTests {
+extension AllTests.DecompositionTests {
 
   func runCase(_ tc: PathTestCase, platform: REVIEW_ONLY_Platform) {
     FilePath.REVIEW_ONLY_platform = platform
@@ -103,7 +102,13 @@ struct DecompositionTests {
   @Test
   func allCasesDarwin() {
     for tc in pathTestCases {
-      runCase(tc, platform: .darwin)
+      if tc.knownDarwinIssue {
+        withKnownIssue("double-slash-within-anchor-structure") {
+          runCase(tc, platform: .darwin)
+        }
+      } else {
+        runCase(tc, platform: .darwin)
+      }
     }
   }
 

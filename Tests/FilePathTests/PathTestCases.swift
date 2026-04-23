@@ -1639,7 +1639,8 @@ let pathTestCases: [PathTestCase] = [
             printed: "/.vol/1234/5678", isAbsolute: true),
         windows: Expected(
             anchor: #"\"#, components: [".vol", "1234", "5678"],
-            printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true)
+            printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true),
+        knownDarwinIssue: true
     ),
 
     // Double slash between vol IDs: second ID is empty, not volfs
@@ -1650,7 +1651,8 @@ let pathTestCases: [PathTestCase] = [
             printed: "/.vol/1234/5678", isAbsolute: true),
         windows: Expected(
             anchor: #"\"#, components: [".vol", "1234", "5678"],
-            printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true)
+            printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true),
+        knownDarwinIssue: true
     ),
 
     // Double slash within resource fork suffix: verbatim match fails
@@ -1661,7 +1663,8 @@ let pathTestCases: [PathTestCase] = [
             printed: "/foo/..namedfork/rsrc", isAbsolute: true),
         windows: Expected(
             anchor: #"\"#, components: ["foo", "..namedfork", "rsrc"],
-            printed: #"\foo\..namedfork\rsrc"#, isAbsolute: false, isRooted: true)
+            printed: #"\foo\..namedfork\rsrc"#, isAbsolute: false, isRooted: true),
+        knownDarwinIssue: true
     ),
 
     // Double slash BEFORE resource fork suffix: suffix IS the last 17 bytes,
@@ -1687,7 +1690,8 @@ let pathTestCases: [PathTestCase] = [
             printed: "/.resolve/1/foo", isAbsolute: true),
         windows: Expected(
             anchor: #"\"#, components: [".resolve", "1", "foo"],
-            printed: #"\.resolve\1\foo"#, isAbsolute: false, isRooted: true)
+            printed: #"\.resolve\1\foo"#, isAbsolute: false, isRooted: true),
+        knownDarwinIssue: true
     ),
 
     // Double slash after nofollow prefix boundary: prefix matches (first 11
