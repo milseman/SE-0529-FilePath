@@ -46,12 +46,20 @@ extension FilePath {
       anchor = nil
     }
 
-    // Check for trailing separator
+    // Check for trailing separator.
+    // A trailing separator exists when:
+    // 1. There IS relative content and its last char is a separator, OR
+    // 2. There is NO relative content but there IS a gap separator
+    //    between rootEnd and relBegin (e.g. \\server\share\)
     let hasTrailingSep: Bool
-    if !isResourceFork && effectiveEnd > relBegin && relBegin < effectiveEnd {
-      hasTrailingSep = effectiveEnd > _storage.startIndex
-        && isSeparator(_storage[_storage.index(before: effectiveEnd)])
-        && _storage.index(before: effectiveEnd) >= relBegin
+    if isResourceFork {
+      hasTrailingSep = false
+    } else if relBegin < effectiveEnd {
+      hasTrailingSep = isSeparator(
+        _storage[_storage.index(before: effectiveEnd)])
+    } else if relBegin > rootEnd {
+      // No relative content, but gap separator exists
+      hasTrailingSep = true
     } else {
       hasTrailingSep = false
     }
@@ -61,7 +69,7 @@ extension FilePath {
     var components: [Component] = []
 
     var idx = relBegin
-    let compEnd = hasTrailingSep
+    let compEnd = hasTrailingSep && relBegin < effectiveEnd
       ? _storage.index(before: effectiveEnd)
       : effectiveEnd
 
@@ -245,27 +253,36 @@ extension FilePath {
     }
 
     let comps = Array(components)
-    let hasAnchor = anchor != nil
 
     for (i, comp) in comps.enumerated() {
-      if i > 0 || hasAnchor {
-        // Need separator between anchor and first component,
-        // or between components.
-        // But if anchor already ends with separator, skip.
-        if i > 0 {
-          str.append(platformSeparator)
-        } else if hasAnchor {
-          // Check if anchor already ends with separator
-          if let last = anchor?._storage.last, !isSeparator(last) {
-            str.append(platformSeparator)
+      if i == 0 {
+        if let anchor = anchor {
+          // Separator between anchor and first component:
+          // - If anchor ends with separator: no extra sep needed
+          // - If anchor ends with `:` (Windows drive-relative): no sep
+          // - Otherwise: add separator
+          if let last = anchor._storage.last {
+            if !isSeparator(last) && last != .colon {
+              str.append(platformSeparator)
+            }
           }
         }
+      } else {
+        str.append(platformSeparator)
       }
       str.append(contentsOf: comp._bytes)
     }
 
-    if hasTrailingSeparator && !comps.isEmpty {
-      str.append(platformSeparator)
+    if hasTrailingSeparator {
+      if !comps.isEmpty {
+        str.append(platformSeparator)
+      } else if anchor != nil {
+        // Trailing sep on anchor-only path (e.g., \\server\share\)
+        // Add separator if anchor doesn't already end with one
+        if let last = anchor?._storage.last, !isSeparator(last) {
+          str.append(platformSeparator)
+        }
+      }
     }
 
     self._storage = str

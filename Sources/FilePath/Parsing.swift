@@ -92,70 +92,57 @@ extension SystemString {
 
 extension SystemString {
   // Drop interior `.` components per the proposal rules:
-  // - `.` after root or non-first position: dropped
-  // - Leading `./` on rootless paths: kept as [., ...]
-  // - Trailing `.`: becomes trailing separator (foo/. -> foo/)
+  // - `.` is dropped unless it is the first component of a non-rooted path
+  // - Trailing `.` becomes trailing separator (foo/. -> foo/)
   // - `..` always preserved
+  // - Verbatim Windows paths (\\?\): `.` and `..` are NOT special
   //
-  // Verbatim Windows paths (\\?\): `.` and `..` are NOT special
-  internal mutating func _normalizeDots(isVerbatimComponent: Bool) {
+  // `isRooted`: whether the original path has a rooted anchor.
+  // When called on an extracted relative portion (no root in storage),
+  // this tells us whether the leading `.` should be dropped.
+  internal mutating func _normalizeDots(
+    isVerbatimComponent: Bool, isRooted: Bool
+  ) {
     guard !isVerbatimComponent else { return }
     guard !isEmpty else { return }
 
     let (rootEnd, relStart) = _parseRoot()
     let hasRoot = rootEnd != startIndex
 
-    // Check for resource fork suffix first — don't normalize inside it
-    let effectiveEnd: Index
-    if _hasResourceForkSuffix(), let rsrcStart = _resourceForkSuffixStart {
-      effectiveEnd = rsrcStart
-    } else {
-      effectiveEnd = endIndex
-    }
+    // If the storage has its own root, use the passed isRooted
+    // (the caller knows whether the root is actually rooted).
+    // If no root in storage (relative portion only), use isRooted directly.
+    let effectivelyRooted = isRooted
 
-    guard relStart < effectiveEnd else { return }
-
-    // Parse components and build a normalized version
-    var result: [SystemChar] = []
-    // Keep anchor as-is
-    if hasRoot {
-      result.append(contentsOf: self[startIndex..<relStart])
-    }
-
-    // Split relative portion into components
+    // Split into components
     var components: [[SystemChar]] = []
     var trailingSep = false
     var idx = relStart
-    while idx < effectiveEnd {
+    while idx < endIndex {
       if isSeparator(self[idx]) {
-        // Check if this is a trailing separator
         let next = index(after: idx)
-        if next >= effectiveEnd {
+        if next >= endIndex {
           trailingSep = true
         }
         idx = next
         continue
       }
-      // Scan component
       let compStart = idx
-      while idx < effectiveEnd && !isSeparator(self[idx]) {
+      while idx < endIndex && !isSeparator(self[idx]) {
         idx = index(after: idx)
       }
       components.append(Array(self[compStart..<idx]))
     }
 
-    // Apply dot normalization
     let dotComp: [SystemChar] = [.dot]
     var normalized: [[SystemChar]] = []
     var hadTrailingDot = false
 
     for (i, comp) in components.enumerated() {
       if comp == dotComp {
-        if i == 0 && !hasRoot {
-          // Leading `.` on rootless path: keep it
+        if i == 0 && !effectivelyRooted {
           normalized.append(comp)
         } else {
-          // Interior or trailing `.`: drop it; trailing becomes trailing sep
           if i == components.count - 1 {
             hadTrailingDot = true
           }
@@ -170,29 +157,21 @@ extension SystemString {
     }
 
     // Rebuild
+    var result: [SystemChar] = []
+    if hasRoot {
+      result.append(contentsOf: self[startIndex..<relStart])
+    }
+
     for (i, comp) in normalized.enumerated() {
-      if i > 0 || hasRoot {
-        if i > 0 {
-          result.append(platformSeparator)
-        }
+      if i > 0 {
+        result.append(platformSeparator)
       }
       result.append(contentsOf: comp)
     }
 
-    // Add trailing separator if needed
     if trailingSep && !normalized.isEmpty {
       result.append(platformSeparator)
     }
-
-    // Add resource fork suffix back
-    if _hasResourceForkSuffix(), let rsrcStart = _resourceForkSuffixStart {
-      result.append(contentsOf: self[rsrcStart..<endIndex])
-    }
-
-    // Handle special case: root with trailing dot (e.g. "/.")
-    // becomes just root (e.g. "/")
-    // But "/./" also becomes "/"
-    // And "/." -> "/" (per test case, no trailing sep)
 
     self = SystemString(result)
   }

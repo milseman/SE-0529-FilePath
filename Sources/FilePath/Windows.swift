@@ -276,6 +276,12 @@ extension SystemString {
       return lexer.current
     }
 
+    // Three or more leading backslashes: NOT a UNC/device path.
+    // Return after the first backslash; coalescing handles the rest.
+    if !lexer.isEmpty && lexer.slice.first == .backslash {
+      return self.index(after: self.startIndex)
+    }
+
     func expectBackslash() {
       if lexer.eatBackslash() { return }
       let idx = lexer.current
@@ -313,11 +319,13 @@ extension SystemString {
           return lexer.current
         }
       }
-      expectBackslash()
+      // Only expect trailing backslash if there's more content
+      if !deviceRange.isEmpty && !lexer.isEmpty {
+        expectBackslash()
+      }
       return lexer.current
     }
 
-    expectComponent()
     expectComponent()
     return lexer.current
   }
