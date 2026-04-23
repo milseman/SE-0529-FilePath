@@ -63,6 +63,20 @@ struct LineReader {
         cursor = buf.count
         redraw(prompt, buf, cursor)
 
+      case 0x02: // Ctrl-B (back)
+        if cursor > 0 { cursor -= 1; output("\u{1b}[D") }
+
+      case 0x06: // Ctrl-F (forward)
+        if cursor < buf.count { cursor += 1; output("\u{1b}[C") }
+
+      case 0x10: // Ctrl-P (previous)
+        historyBack(prompt: prompt, buf: &buf, cursor: &cursor,
+                    histIdx: &histIdx, saved: &saved)
+
+      case 0x0e: // Ctrl-N (next)
+        historyForward(prompt: prompt, buf: &buf, cursor: &cursor,
+                       histIdx: &histIdx, saved: &saved)
+
       case 0x15: // Ctrl-U
         buf.removeAll(); cursor = 0
         redraw(prompt, buf, cursor)
@@ -102,19 +116,11 @@ struct LineReader {
 
     switch code {
     case 0x41: // Up
-      if histIdx > 0 {
-        if histIdx == history.count { saved = buf }
-        histIdx -= 1
-        buf = Array(history[histIdx]); cursor = buf.count
-        redraw(prompt, buf, cursor)
-      }
+      historyBack(prompt: prompt, buf: &buf, cursor: &cursor,
+                  histIdx: &histIdx, saved: &saved)
     case 0x42: // Down
-      if histIdx < history.count {
-        histIdx += 1
-        buf = histIdx == history.count ? saved : Array(history[histIdx])
-        cursor = buf.count
-        redraw(prompt, buf, cursor)
-      }
+      historyForward(prompt: prompt, buf: &buf, cursor: &cursor,
+                     histIdx: &histIdx, saved: &saved)
     case 0x43: // Right
       if cursor < buf.count { cursor += 1; output("\u{1b}[C") }
     case 0x44: // Left
@@ -130,6 +136,34 @@ struct LineReader {
       }
     default:
       break
+    }
+  }
+
+  // MARK: - History
+
+  private func historyBack(
+    prompt: String,
+    buf: inout [Character], cursor: inout Int,
+    histIdx: inout Int, saved: inout [Character]
+  ) {
+    if histIdx > 0 {
+      if histIdx == history.count { saved = buf }
+      histIdx -= 1
+      buf = Array(history[histIdx]); cursor = buf.count
+      redraw(prompt, buf, cursor)
+    }
+  }
+
+  private func historyForward(
+    prompt: String,
+    buf: inout [Character], cursor: inout Int,
+    histIdx: inout Int, saved: inout [Character]
+  ) {
+    if histIdx < history.count {
+      histIdx += 1
+      buf = histIdx == history.count ? saved : Array(history[histIdx])
+      cursor = buf.count
+      redraw(prompt, buf, cursor)
     }
   }
 
