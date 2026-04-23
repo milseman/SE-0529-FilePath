@@ -20,6 +20,23 @@ func dump(_ input: String) {
     let path = FilePath(input)
 
     print("  \u{2550}\u{2550}\u{2550} \(name) \u{2550}\u{2550}\u{2550}")
+
+    // Decomposition summary
+    let anchorStr = path.anchor.map { quoted($0.description) } ?? "(none)"
+    let compStrs = path.components.map { quoted($0.description) }
+    let compsStr = compStrs.isEmpty ? "(none)" : compStrs.joined(separator: ", ")
+    let suffix: String
+    if platform == .darwin && path.isResourceFork {
+      suffix = "/..namedfork/rsrc"
+    } else if path.hasTrailingSeparator {
+      suffix = "trailing separator"
+    } else {
+      suffix = "(none)"
+    }
+    print("  \(anchorStr) | \(compsStr) | \(suffix)")
+    print()
+
+    // Details
     print("  description:          \(quoted(path.description))")
     print("  isEmpty:              \(path.isEmpty)")
     print("  isAbsolute:           \(path.isAbsolute)")
@@ -76,9 +93,8 @@ if CommandLine.arguments.count > 1 {
     dump(arg)
   }
 } else {
-  print("> ", terminator: "")
-  while let line = readLine(), !line.isEmpty {
+  var reader = LineReader()
+  while let line = reader.readLine(prompt: "> "), !line.isEmpty {
     dump(line)
-    print("> ", terminator: "")
   }
 }
