@@ -11,10 +11,29 @@
 ## Try it out
 
 ```
-swift test
+swift run filepath-play '/usr/local/bin' 'C:\Users\Admin\' '/.vol/1234/5678/file'
 ```
 
-Tests exercise path decomposition across Linux, Darwin, and Windows (simulated via `REVIEW_ONLY_platform`).
+Each path is decomposed across all three platforms. The summary line shows `anchor | components | suffix`:
+
+```
+input: "/usr/local/bin"
+  ═══ linux ═══   "/" | "usr", "local", "bin" | (none)
+  ═══ darwin ═══  "/" | "usr", "local", "bin" | (none)
+  ═══ windows ═══ "\" | "usr", "local", "bin" | (none)
+
+input: "C:\Users\Admin\"
+  ═══ linux ═══   (none) | "C:\Users\Admin\" | (none)
+  ═══ darwin ═══  (none) | "C:\Users\Admin\" | (none)
+  ═══ windows ═══ "C:\"  | "Users", "Admin"  | trailing separator
+
+input: "/.vol/1234/5678/file"
+  ═══ linux ═══   "/"               | ".vol", "1234", "5678", "file" | (none)
+  ═══ darwin ═══  "/.vol/1234/5678" | "file"                         | (none)
+  ═══ windows ═══ "\"               | ".vol", "1234", "5678", "file" | (none)
+```
+
+Run with no arguments for an interactive prompt. Run `swift test` to exercise all platforms.
 
 ## What's implemented
 
