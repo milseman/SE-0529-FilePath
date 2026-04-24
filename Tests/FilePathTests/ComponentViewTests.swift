@@ -133,20 +133,6 @@ extension AllTests.ComponentViewTests {
   }
 
   @Test
-  func appendPreservesTrailingSeparator() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    var path = FilePath("a/b/")
-    #expect(path.hasTrailingSeparator)
-    var cv = path.components
-    cv.append("c")
-    path.components = cv
-
-    // Trailing separator is preserved from the original decomposition
-    #expect(path.hasTrailingSeparator)
-    #expect(path.description == "a/b/c/")
-  }
-
-  @Test
   func appendContentsOf() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr")
@@ -607,21 +593,6 @@ extension AllTests.ComponentViewTests {
   }
 
   @Test
-  func trailingSeparatorAfterRemoveLast() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    var path = FilePath("a/b/c/")
-    #expect(path.hasTrailingSeparator)
-
-    var cv = path.components
-    cv.removeLast()
-    path.components = cv
-
-    // Trailing separator is preserved through the setter
-    #expect(path.hasTrailingSeparator)
-    #expect(path.description == "a/b/")
-  }
-
-  @Test
   func multipleAppends() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/")
@@ -655,14 +626,285 @@ extension AllTests.ComponentViewTests {
     }
   }
 
-  // MARK: - Reparse hazards
-  //
-  // Inserting certain components can cause the reconstructed path to
-  // parse with a fundamentally different decomposition: different
-  // anchor, different component boundaries, or phantom suffixes.
-  // These are open design questions for the proposal. The tests
-  // document current behavior; set `enabled` to `false` while the
-  // semantics are under discussion.
+  // MARK: - Suffix semantics on mutation
+
+  // -- Trailing separator: strip on remove/replace --
+
+  @Test
+  func trailingSepStrippedOnRemoveLast() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("a/b/c/")
+    #expect(path.hasTrailingSeparator)
+
+    var cv = path.components
+    cv.removeLast()
+    path.components = cv
+
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == "a/b")
+  }
+
+  @Test
+  func trailingSepStrippedOnReplaceLast() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("a/b/c/")
+    #expect(path.hasTrailingSeparator)
+
+    var cv = path.components
+    cv.replaceSubrange(
+      cv.endIndex - 1 ..< cv.endIndex,
+      with: ["d" as FilePath.Component])
+    path.components = cv
+
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == "a/b/d")
+  }
+
+  @Test
+  func trailingSepStrippedOnRemoveAll() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("a/b/c/")
+    #expect(path.hasTrailingSeparator)
+
+    var cv = path.components
+    cv.removeAll()
+    path.components = cv
+
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == "")
+  }
+
+  @Test
+  func trailingSepStrippedOnRemoveAllAbsolute() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("/a/b/c/")
+    #expect(path.hasTrailingSeparator)
+
+    var cv = path.components
+    cv.removeAll()
+    path.components = cv
+
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == "/")
+  }
+
+  @Test
+  func windowsTrailingSepStrippedOnRemoveLast() {
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"C:\Users\Admin\"#)
+    #expect(path.hasTrailingSeparator)
+
+    var cv = path.components
+    cv.removeLast()
+    path.components = cv
+
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == #"C:\Users"#)
+  }
+
+  // -- Trailing separator: preserve when last unchanged --
+
+  @Test
+  func trailingSepPreservedOnInsertFirst() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("a/b/c/")
+    #expect(path.hasTrailingSeparator)
+
+    var cv = path.components
+    cv.insert("z", at: 0)
+    path.components = cv
+
+    #expect(path.hasTrailingSeparator)
+    #expect(path.description == "z/a/b/c/")
+  }
+
+  @Test
+  func trailingSepPreservedOnReplaceNonLast() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("a/b/c/")
+
+    var cv = path.components
+    cv.replaceSubrange(0..<1, with: ["x" as FilePath.Component])
+    path.components = cv
+
+    #expect(path.hasTrailingSeparator)
+    #expect(path.description == "x/b/c/")
+  }
+
+  @Test
+  func trailingSepPreservedOnRemoveFirst() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("a/b/c/")
+
+    var cv = path.components
+    cv.removeFirst()
+    path.components = cv
+
+    #expect(path.hasTrailingSeparator)
+    #expect(path.description == "b/c/")
+  }
+
+  @Test
+  func trailingSepPreservedOnInsertMiddle() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("/a/c/")
+
+    var cv = path.components
+    cv.insert("b", at: 1)
+    path.components = cv
+
+    #expect(path.hasTrailingSeparator)
+    #expect(path.description == "/a/b/c/")
+  }
+
+  @Test
+  func trailingSepPreservedOnNoChange() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("a/b/c/")
+    let cv = path.components
+    path.components = cv
+
+    #expect(path.hasTrailingSeparator)
+    #expect(path.description == "a/b/c/")
+  }
+
+  @Test
+  func trailingSepPreservedEmptyToEmpty() {
+    // \\server\share\ decomposes with empty components and
+    // trailing sep. Setting empty components back preserves it.
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"\\server\share\"#)
+    #expect(path.hasTrailingSeparator)
+    #expect(path.components.isEmpty)
+
+    let cv = path.components
+    path.components = cv
+
+    #expect(path.hasTrailingSeparator)
+  }
+
+  // -- Trailing separator: append (see README open questions) --
+
+  @Test
+  func trailingSepOnAppend() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("a/b/")
+    #expect(path.hasTrailingSeparator)
+
+    var cv = path.components
+    cv.append("c")
+    path.components = cv
+
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == "a/b/c")
+  }
+
+  @Test
+  func trailingSepOnAppendContentsOf() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("/dir/")
+    #expect(path.hasTrailingSeparator)
+
+    var cv = path.components
+    cv.append(contentsOf: ["sub", "file"] as [FilePath.Component])
+    path.components = cv
+
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == "/dir/sub/file")
+  }
+
+  // -- Resource fork: strip on remove/replace (Darwin) --
+
+  @Test
+  func resourceForkStrippedOnRemoveLast() {
+    FilePath.REVIEW_ONLY_platform = .darwin
+    var path = FilePath("/dir/file/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+    #expect(path.components.map(\.description) == ["dir", "file"])
+
+    var cv = path.components
+    cv.removeLast()
+    path.components = cv
+
+    #expect(!path.isResourceFork)
+    #expect(path.description == "/dir")
+  }
+
+  @Test
+  func resourceForkStrippedOnReplaceLast() {
+    FilePath.REVIEW_ONLY_platform = .darwin
+    var path = FilePath("/file/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+    #expect(path.components.map(\.description) == ["file"])
+
+    var cv = path.components
+    cv.replaceSubrange(0..<1, with: ["other" as FilePath.Component])
+    path.components = cv
+
+    #expect(!path.isResourceFork)
+    #expect(path.description == "/other")
+  }
+
+  @Test
+  func resourceForkStrippedOnRemoveAll() {
+    FilePath.REVIEW_ONLY_platform = .darwin
+    var path = FilePath("/file/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+
+    var cv = path.components
+    cv.removeAll()
+    path.components = cv
+
+    #expect(!path.isResourceFork)
+    #expect(path.description == "/")
+  }
+
+  // -- Resource fork: preserve when last unchanged --
+
+  @Test
+  func resourceForkPreservedOnInsert() {
+    FilePath.REVIEW_ONLY_platform = .darwin
+    var path = FilePath("/file/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+    #expect(path.components.map(\.description) == ["file"])
+
+    var cv = path.components
+    cv.insert("dir", at: 0)
+    path.components = cv
+
+    #expect(path.isResourceFork)
+    #expect(path.components.map(\.description) == ["dir", "file"])
+  }
+
+  @Test
+  func resourceForkPreservedOnNoChange() {
+    FilePath.REVIEW_ONLY_platform = .darwin
+    var path = FilePath("/file/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+
+    let cv = path.components
+    path.components = cv
+
+    #expect(path.isResourceFork)
+  }
+
+  // -- Resource fork: append (see README open questions) --
+
+  @Test
+  func resourceForkOnAppend() {
+    FilePath.REVIEW_ONLY_platform = .darwin
+    var path = FilePath("/file/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+
+    var cv = path.components
+    cv.append("extra")
+    path.components = cv
+
+    #expect(!path.isResourceFork)
+    #expect(path.description == "/file/extra")
+  }
+
+  // MARK: - Reparse hazards (see README open questions)
 
   static let reparseHazardsEnabled = false
 

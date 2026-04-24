@@ -120,10 +120,21 @@ extension FilePath {
     get { ComponentView(_decompose().components) }
     set {
       let d = _decompose()
-      self = FilePath(
-        anchor: d.anchor,
-        newValue._components,
-        hasTrailingSeparator: d.hasTrailingSeparator)
+      // Suffix (trailing separator / resource fork) is logically
+      // attached to the last component. Strip when it changes.
+      let lastPreserved = d.components.last == newValue._components.last
+      if lastPreserved && d.isResourceFork {
+        self = FilePath(
+          anchor: d.anchor,
+          newValue._components,
+          resourceFork: true)
+      } else {
+        self = FilePath(
+          anchor: d.anchor,
+          newValue._components,
+          hasTrailingSeparator: lastPreserved
+            ? d.hasTrailingSeparator : false)
+      }
     }
   }
 }
