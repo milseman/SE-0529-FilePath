@@ -63,7 +63,20 @@ extension SystemString {
     var (writeIdx, readIdx) = (startIndex, startIndex)
 
     if _isWindows {
-      self._replaceAll(genericSeparator, with: platformSeparator)
+      // Detect exact \\?\ prefix on raw input before any conversion.
+      // Only exact backslashes trigger verbatim mode.
+      let verbatimAnchorEnd = _findVerbatimAnchorEnd()
+      if verbatimAnchorEnd != startIndex {
+        // Verbatim: no slash conversion in component region.
+        // Anchor region is already all-backslash (required by prefix).
+      } else {
+        self._replaceAll(genericSeparator, with: platformSeparator)
+        // //?/ normalizes to \\?\ after conversion, but it's
+        // device-namespace, not verbatim. Demote ? → . sigil.
+        if _startsWithVerbatimPrefix() != nil {
+          self[index(startIndex, offsetBy: 2)] = .dot
+        }
+      }
       readIdx = _prenormalizeWindowsRoots()
       writeIdx = readIdx
 

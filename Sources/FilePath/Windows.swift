@@ -142,6 +142,81 @@ struct _Lexer {
   }
 }
 
+// MARK: - Verbatim prefix detection (pre-normalization)
+
+extension SystemString {
+  // Check if this string starts with the exact verbatim prefix \\?\
+  // (four backslashes — no forward slashes). Returns the index past
+  // the prefix, or nil.
+  internal func _startsWithVerbatimPrefix() -> Index? {
+    guard count >= 4 else { return nil }
+    let i0 = startIndex
+    let i1 = index(after: i0)
+    let i2 = index(after: i1)
+    let i3 = index(after: i2)
+    guard self[i0] == .backslash,
+          self[i1] == .backslash,
+          self[i2] == .question,
+          self[i3] == .backslash
+    else { return nil }
+    return index(after: i3)
+  }
+
+  // For a verbatim path (exact \\?\ prefix), find where the anchor
+  // ends. Only backslash is a separator in verbatim context.
+  // Returns the index where component content begins.
+  internal func _findVerbatimAnchorEnd() -> Index {
+    guard let afterPrefix = _startsWithVerbatimPrefix() else {
+      return startIndex
+    }
+
+    func skipToSep(from start: Index) -> Index {
+      var i = start
+      while i < endIndex && !isSeparator(self[i]) {
+        formIndex(after: &i)
+      }
+      return i
+    }
+
+    func skipPastSep(from idx: Index) -> Index {
+      if idx < endIndex && isSeparator(self[idx]) {
+        return index(after: idx)
+      }
+      return idx
+    }
+
+    // \\?\UNC\server\share[\]
+    let uncChars: [SystemChar] = [
+      SystemChar(ascii: "U"), SystemChar(ascii: "N"), SystemChar(ascii: "C")
+    ]
+    if self[afterPrefix...].starts(with: uncChars) {
+      let afterUNC = index(afterPrefix, offsetBy: 3)
+      if afterUNC < endIndex && isSeparator(self[afterUNC]) {
+        let serverStart = index(after: afterUNC)
+        let serverEnd = skipToSep(from: serverStart)
+        let shareStart = skipPastSep(from: serverEnd)
+        let shareEnd = skipToSep(from: shareStart)
+        return skipPastSep(from: shareEnd)
+      }
+    }
+
+    // \\?\C:[\]
+    if afterPrefix < endIndex {
+      let afterFirst = index(after: afterPrefix)
+      if afterFirst < endIndex
+         && self[afterPrefix].isLetter
+         && self[afterFirst] == .colon {
+        let afterColon = index(after: afterFirst)
+        return skipPastSep(from: afterColon)
+      }
+    }
+
+    // \\?\device[\]
+    let deviceEnd = skipToSep(from: afterPrefix)
+    return skipPastSep(from: deviceEnd)
+  }
+}
+
 // MARK: - Windows root parsing
 
 extension SystemString {
@@ -266,9 +341,6 @@ extension SystemString {
 extension SystemString {
   internal mutating func _prenormalizeWindowsRoots() -> Index {
     assert(_isWindows)
-    assert(
-      !self.contains(.slash),
-      "only valid after separator conversion")
 
     var lexer = _Lexer(self)
 

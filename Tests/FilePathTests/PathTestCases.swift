@@ -1080,6 +1080,61 @@ let pathTestCases: [PathTestCase] = [
             printed: #"\\?\C:\foo\bar"#, isAbsolute: true, driveLetter: "C")
     ),
 
+    // MARK: - Forward slashes inside verbatim component content
+
+    // / inside verbatim component is a legal filename character, not a separator
+    PathTestCase(
+        input: #"\\?\C:\foo/bar"#,
+        unix: Expected(
+            anchor: nil, components: [#"\\?\C:\foo"#, "bar"],
+            printed: #"\\?\C:\foo/bar"#, isAbsolute: false),
+        windows: Expected(
+            anchor: #"\\?\C:\"#, components: ["foo/bar"],
+            printed: #"\\?\C:\foo/bar"#, isAbsolute: true, driveLetter: "C")
+    ),
+
+    PathTestCase(
+        input: #"\\?\C:\a/b/c"#,
+        unix: Expected(
+            anchor: nil, components: [#"\\?\C:\a"#, "b", "c"],
+            printed: #"\\?\C:\a/b/c"#, isAbsolute: false),
+        windows: Expected(
+            anchor: #"\\?\C:\"#, components: ["a/b/c"],
+            printed: #"\\?\C:\a/b/c"#, isAbsolute: true, driveLetter: "C")
+    ),
+
+    PathTestCase(
+        input: #"\\?\UNC\s\sh\a/b"#,
+        unix: Expected(
+            anchor: nil, components: [#"\\?\UNC\s\sh\a"#, "b"],
+            printed: #"\\?\UNC\s\sh\a/b"#, isAbsolute: false),
+        windows: Expected(
+            anchor: #"\\?\UNC\s\sh"#, components: ["a/b"],
+            printed: #"\\?\UNC\s\sh\a/b"#, isAbsolute: true)
+    ),
+
+    // //?/ is NOT verbatim — it's device-namespace (same as //./). All / converted.
+    PathTestCase(
+        input: "//?/C:/a/b",
+        unix: Expected(
+            anchor: "/", components: ["?", "C:", "a", "b"],
+            printed: "/?/C:/a/b", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\\.\C:\"#, components: ["a", "b"],
+            printed: #"\\.\C:\a\b"#, isAbsolute: true, driveLetter: "C")
+    ),
+
+    // Non-verbatim device path: all / converted (regression check)
+    PathTestCase(
+        input: "//./C:/a/b",
+        unix: Expected(
+            anchor: "/", components: ["C:", "a", "b"],
+            printed: "/C:/a/b", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\\.\C:\"#, components: ["a", "b"],
+            printed: #"\\.\C:\a\b"#, isAbsolute: true, driveLetter: "C")
+    ),
+
     // MARK: - Windows forward slash normalization
 
     // Triple slash: coalesces on both, rooted on Windows
@@ -1106,15 +1161,15 @@ let pathTestCases: [PathTestCase] = [
     ),
 
     // //?/foo on Unix: regular components
-    // //?/foo on Windows: verbatim-component prefix, "foo" is device name
+    // //?/foo on Windows: device-namespace (not verbatim), "foo" is device name
     PathTestCase(
         input: "//?/foo",
         unix: Expected(
             anchor: "/", components: ["?", "foo"],
             printed: "/?/foo", isAbsolute: true),
         windows: Expected(
-            anchor: #"\\?\foo"#, components: [],
-            printed: #"\\?\foo"#, isAbsolute: true)
+            anchor: #"\\.\foo"#, components: [],
+            printed: #"\\.\foo"#, isAbsolute: true)
     ),
 
     PathTestCase(
@@ -1165,8 +1220,8 @@ let pathTestCases: [PathTestCase] = [
             anchor: "/", components: ["?", "C:", "foo"],
             printed: "/?/C:/foo", isAbsolute: true),
         windows: Expected(
-            anchor: #"\\?\C:\"#, components: ["foo"],
-            printed: #"\\?\C:\foo"#, isAbsolute: true, driveLetter: "C")
+            anchor: #"\\.\C:\"#, components: ["foo"],
+            printed: #"\\.\C:\foo"#, isAbsolute: true, driveLetter: "C")
     ),
 
     // MARK: - Cross-platform mismatch
