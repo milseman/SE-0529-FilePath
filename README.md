@@ -45,13 +45,6 @@ The full public surface described in the proposal:
 
 - **Degenerate Windows UNC paths**: Paths like `\\server` (no share), `\\` (bare double backslash), and `\\server\` (server but no share name) are commented out in the test data as "behavior TBD."
 
-- **Suffix behavior on append**: The trailing separator and resource fork suffix are logically attached to the last component. When the last component is removed or replaced via `ComponentView`, the suffix is stripped. But when a *new* component is appended (changing which component is last), should the suffix transfer to the new element or be stripped?
-
-  - **Transfer** preserves "directory" semantics: `"a/b/".components.append("c")` → `"a/b/c/"`. The path was a directory, and appending a child keeps it as a directory.
-  - **Strip** treats the suffix as belonging to the old last component: `"a/b/".components.append("c")` → `"a/b/c"`. The trailing separator was on `"b"`, and `"c"` gets no suffix.
-
-  The current implementation strips. Both trailing separator and resource fork use the same rule. Test cases for both choices are in `ComponentViewTests` (`trailingSepOnAppend`, `resourceForkOnAppend`).
-
 - **Reparse hazards from component mutation**: Mutating `ComponentView` and writing it back goes through reconstruction without re-normalization. Certain mutations can produce a path that parses with a fundamentally different decomposition than the original:
 
   - **Darwin anchor absorption**: Inserting `.nofollow`, `.resolve`, or `.vol` as the first component of an absolute path causes re-decomposition to absorb components into the anchor. For example, `/foo/bar` → insert `.nofollow` at 0 → `/.nofollow/foo/bar` → anchor is now `/.nofollow/` instead of `/`, and `foo` is no longer the first component. Removing or replacing the first component can also expose a hidden anchor pattern (e.g., `/prefix/.nofollow/foo` → remove `prefix` → `/.nofollow/foo`).

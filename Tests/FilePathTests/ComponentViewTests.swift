@@ -783,7 +783,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.hasTrailingSeparator)
   }
 
-  // -- Trailing separator: append (see README open questions) --
+  // -- Trailing separator: strip on append --
 
   @Test
   func trailingSepOnAppend() {
@@ -888,7 +888,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.isResourceFork)
   }
 
-  // -- Resource fork: append (see README open questions) --
+  // -- Resource fork: strip on append --
 
   @Test
   func resourceForkOnAppend() {
