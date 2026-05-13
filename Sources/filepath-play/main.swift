@@ -21,7 +21,7 @@ func collectResult(
   _ input: String, platform: REVIEW_ONLY_Platform, name: String
 ) -> PlatformResult {
   FilePath.REVIEW_ONLY_platform = platform
-  let path = FilePath(input)
+  let path = FilePath(input)!
 
   let anchorStr = path.anchor.map { quoted($0.description) } ?? "(none)"
   let compStrs = path.components.map { quoted($0.description) }
@@ -46,7 +46,6 @@ func printDetails(_ r: PlatformResult) {
   print("  description:          \(quoted(path.description))")
   print("  isEmpty:              \(path.isEmpty)")
   print("  isAbsolute:           \(path.isAbsolute)")
-  print("  isRelative:           \(path.isRelative)")
   print("  hasTrailingSeparator: \(path.hasTrailingSeparator)")
 
   if r.platform == .darwin {

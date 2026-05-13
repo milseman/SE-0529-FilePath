@@ -17,4 +17,5 @@ import Testing
 struct AllTests {
   struct DecompositionTests {}
   struct ComponentViewTests {}
+  struct ValidationTests {}
 }

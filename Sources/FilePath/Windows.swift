@@ -275,7 +275,9 @@ extension SystemString {
         relativeBegin: lexer.current)
     }
 
-    if lexer.eatUNC() {
+    // UNC sub-form only applies to verbatim paths (\\?\UNC\...).
+    // For device-namespace (\\.\), UNC is just a device name.
+    if sigil == .question, lexer.eatUNC() {
       guard lexer.eatBackslash() else {
         let end = lexer.current
         return .device(
@@ -368,9 +370,10 @@ extension SystemString {
       expectBackslash()
     }
 
-    if lexer.eatSigil() != nil {
+    if let sigil = lexer.eatSigil() {
       expectBackslash()
-      if lexer.eatUNC() {
+      // UNC sub-form only for verbatim (\\?\UNC\...), not device (\\.\UNC\...)
+      if sigil == .question, lexer.eatUNC() {
         expectBackslash()
         expectComponent()
         expectComponent()

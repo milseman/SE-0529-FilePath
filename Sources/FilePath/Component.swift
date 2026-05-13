@@ -73,17 +73,31 @@ extension FilePath.Component: CustomStringConvertible, CustomDebugStringConverti
 }
 
 extension FilePath.Component: ExpressibleByStringLiteral {
+  /// Creates a file path component from a string literal.
+  ///
+  /// Precondition: `stringLiteral` is non-empty and contains no `NUL`
+  /// or directory separator.
   public init(stringLiteral: String) {
     guard let c = FilePath.Component(stringLiteral) else {
       fatalError(
-        "FilePath.Component must be created from exactly one non-root component")
+        "FilePath.Component string literal must be non-empty"
+        + " and must not contain NUL or a directory separator")
     }
     self = c
   }
 
+  /// Creates a file path component from a string.
+  ///
+  /// Returns `nil` if `string` is empty or contains `NUL` or a
+  /// directory separator.
   public init?(_ string: String) {
     guard !string.isEmpty else { return nil }
-    let path = FilePath(string)
+    guard !string.utf8.contains(0) else { return nil }
+    for scalar in string.unicodeScalars {
+      if scalar == "/" { return nil }
+      if _isWindows && scalar == "\\" { return nil }
+    }
+    guard let path = FilePath(string) else { return nil }
     guard path.anchor == nil else { return nil }
     let comps = path.components
     guard comps.count == 1 else { return nil }

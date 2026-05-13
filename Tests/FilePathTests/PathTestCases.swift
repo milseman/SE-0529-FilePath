@@ -1845,8 +1845,54 @@ let pathTestCases: [PathTestCase] = [
         input: #"\\.\UNC\srv\share\foo"#,
         unix: .singleComponent(#"\\.\UNC\srv\share\foo"#),
         windows: Expected(
-            anchor: #"\\.\UNC\srv\share"#, components: ["foo"],
+            anchor: #"\\.\UNC"#, components: ["srv", "share", "foo"],
             printed: #"\\.\UNC\srv\share\foo"#, isAbsolute: true)
+    ),
+
+    // \\.\UNC alone: device name only, no components
+    PathTestCase(
+        input: #"\\.\UNC"#,
+        unix: .singleComponent(#"\\.\UNC"#),
+        windows: Expected(
+            anchor: #"\\.\UNC"#, components: [],
+            printed: #"\\.\UNC"#, isAbsolute: true)
+    ),
+
+    // \\.\UNC\ trailing sep after device name
+    PathTestCase(
+        input: #"\\.\UNC\"#,
+        unix: .singleComponent(#"\\.\UNC\"#),
+        windows: Expected(
+            anchor: #"\\.\UNC"#, components: [], hasTrailingSeparator: true,
+            printed: #"\\.\UNC\"#, isAbsolute: true)
+    ),
+
+    // \\.\UNC\server: server is a component, NOT absorbed into anchor
+    PathTestCase(
+        input: #"\\.\UNC\server"#,
+        unix: .singleComponent(#"\\.\UNC\server"#),
+        windows: Expected(
+            anchor: #"\\.\UNC"#, components: ["server"],
+            printed: #"\\.\UNC\server"#, isAbsolute: true)
+    ),
+
+    // \\.\UNC\server\share: both are components (contrast with \\?\UNC\)
+    PathTestCase(
+        input: #"\\.\UNC\server\share"#,
+        unix: .singleComponent(#"\\.\UNC\server\share"#),
+        windows: Expected(
+            anchor: #"\\.\UNC"#, components: ["server", "share"],
+            printed: #"\\.\UNC\server\share"#, isAbsolute: true)
+    ),
+
+    // \\.\UNC\server\share\ trailing sep
+    PathTestCase(
+        input: #"\\.\UNC\server\share\"#,
+        unix: .singleComponent(#"\\.\UNC\server\share\"#),
+        windows: Expected(
+            anchor: #"\\.\UNC"#, components: ["server", "share"],
+            hasTrailingSeparator: true,
+            printed: #"\\.\UNC\server\share\"#, isAbsolute: true)
     ),
 
     // MARK: - Verbatim non-drive non-UNC

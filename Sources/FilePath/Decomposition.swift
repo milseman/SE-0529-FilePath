@@ -157,8 +157,6 @@ extension FilePath {
     return true
   }
 
-  /// Returns true if this path is not absolute.
-  public var isRelative: Bool { !isAbsolute }
 }
 
 // MARK: - Trailing separator

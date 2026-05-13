@@ -13,6 +13,9 @@ extension FilePath {
   ///
   /// All intermediate components must exist. Throws if the path
   /// cannot be resolved.
+  ///
+  /// This operation is synchronous and may block.
+  @available(*, noasync)
   public func resolve() throws -> FilePath {
     preconditionFailure("resolve() is not yet implemented in the reference implementation")
   }

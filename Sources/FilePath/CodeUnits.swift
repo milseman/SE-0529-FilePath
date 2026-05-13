@@ -19,24 +19,40 @@ extension FilePath {
   public typealias CodeUnit = CChar
 }
 
-// NOTE: Span-based APIs require lifetime annotations that are not yet
-// available in Swift 6.2 for package code. These are stubbed as
-// withUnsafeBufferPointer-based closures instead.
+// MARK: - withCString
 
 extension FilePath {
-  /// Access the null-terminated code units of this path.
-  public func withNullTerminatedCodeUnits<T>(
-    _ body: (UnsafeBufferPointer<CodeUnit>) throws -> T
-  ) rethrows -> T {
-    try _storage.withNullTerminatedSystemChars { chars in
-      try chars.baseAddress!.withMemoryRebound(
-        to: CodeUnit.self, capacity: chars.count
-      ) {
-        try body(UnsafeBufferPointer(start: $0, count: chars.count))
-      }
+  /// Calls the given closure with a pointer to the path's contents,
+  /// represented as a null-terminated sequence of platform code units.
+  /// The pointer is valid only for the duration of the closure.
+  ///
+  /// On Windows the pointer is wide (`UnsafePointer<UInt16>`); see
+  /// also `String.withCString(encodedAs:_:)`.
+  public func withCString<Result, E: Error>(
+    _ body: (UnsafePointer<FilePath.CodeUnit>) throws(E) -> Result
+  ) throws(E) -> Result {
+    let storage = _storage.nullTerminatedStorage
+    let count = storage.count
+    let buf = UnsafeMutablePointer<CodeUnit>.allocate(capacity: count)
+    defer { buf.deallocate() }
+    for i in 0..<count {
+      buf[i] = storage[i].rawValue
     }
+    return try body(UnsafePointer(buf))
   }
+}
 
+// MARK: - Code unit access (stand-ins for Span-based API)
+
+// NOTE: The proposal specifies `var codeUnits: Span<CodeUnit>` on
+// FilePath, Component, Anchor, and ComponentView.  Span properties
+// require lifetime annotations not available without experimental
+// features.  These closure-based `withCodeUnits` methods are
+// stand-ins until the real Span API can be expressed.
+
+extension FilePath {
+  /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
+  ///
   /// Access the code units of this path (not including null terminator).
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<CodeUnit>) throws -> T
@@ -51,15 +67,34 @@ extension FilePath {
   }
 
   /// Creates a file path from a buffer of platform code units.
-  public init(codeUnits: UnsafeBufferPointer<CodeUnit>) {
-    var chars = Array(codeUnits).map { SystemChar(rawValue: $0) }
-    chars.append(.null)
-    let str = SystemString(nullTerminated: chars)
+  ///
+  /// The buffer should not include a null terminator. Returns `nil`
+  /// if the buffer contains `NUL`, which is not a valid path byte
+  /// on any supported platform.
+  public init?(codeUnits: UnsafeBufferPointer<CodeUnit>) {
+    let chars = Array(codeUnits).map { SystemChar(rawValue: $0) }
+    guard !chars.contains(.null) else { return nil }
+    var nullTerminated = chars
+    nullTerminated.append(.null)
+    let str = SystemString(nullTerminated: nullTerminated)
     self.init(normalizing: str)
   }
+
+  // NOTE: The proposal specifies an OutputSpan-based initializer:
+  //
+  //   public init<E: Error>(
+  //     capacity: Int,
+  //     initializingCodeUnitsWith initializer:
+  //       (inout OutputSpan<FilePath.CodeUnit>) throws(E) -> Void
+  //   ) throws(E)
+  //
+  // OutputSpan requires experimental features not available without
+  // compiler flags.  Stubbed until OutputSpan is generally available.
 }
 
 extension FilePath.Component {
+  /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
+  ///
   /// Access the code units of this component.
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
@@ -75,9 +110,13 @@ extension FilePath.Component {
   }
 
   /// Creates a file path component from a buffer of platform code units.
+  ///
+  /// Returns `nil` if the code units are empty, contain `NUL`, or are
+  /// otherwise invalid (e.g. contain more than one component).
   public init?(codeUnits: UnsafeBufferPointer<FilePath.CodeUnit>) {
     guard codeUnits.count > 0 else { return nil }
     let chars = Array(codeUnits).map { SystemChar(rawValue: $0) }
+    guard !chars.contains(.null) else { return nil }
     let str = SystemString(chars)
     let path = FilePath(normalizing: str)
     guard path.anchor == nil else { return nil }
@@ -88,6 +127,8 @@ extension FilePath.Component {
 }
 
 extension FilePath.Anchor {
+  /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
+  ///
   /// Access the code units of this anchor.
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
@@ -103,11 +144,12 @@ extension FilePath.Anchor {
 }
 
 extension FilePath.ComponentView {
+  /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
+  ///
   /// Access the code units of the component view.
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
-    // Reconstruct just the relative components portion
     var str = SystemString()
     for (i, comp) in _components.enumerated() {
       if i > 0 {

@@ -96,21 +96,27 @@ extension FilePath.Anchor: CustomStringConvertible, CustomDebugStringConvertible
 }
 
 extension FilePath.Anchor: ExpressibleByStringLiteral {
+  /// Creates an anchor from a string literal.
+  ///
+  /// Precondition: the literal is non-empty, contains no `NUL`,
+  /// and forms a valid anchor.
   public init(stringLiteral: String) {
     guard let a = FilePath.Anchor(stringLiteral) else {
-      fatalError("FilePath.Anchor must be created from a valid anchor")
+      fatalError(
+        "FilePath.Anchor string literal must be non-empty,"
+        + " must not contain NUL, and must form a valid anchor")
     }
     self = a
   }
 
+  /// Creates an anchor from a string.
+  ///
+  /// Returns `nil` if `string` is empty, contains `NUL`, or is
+  /// not a valid anchor.
   public init?(_ string: String) {
-    let path = FilePath(string)
+    guard let path = FilePath(string) else { return nil }
     guard let anchor = path.anchor else { return nil }
     guard path.components.isEmpty && !path.hasTrailingSeparator else {
-      // String has components beyond just the anchor
-      // But we should allow "C:\" which is anchor-only
-      // The anchor is valid if the path decomposes to just anchor
-      // (with possible trailing sep that's part of anchor syntax)
       return nil
     }
     self = anchor

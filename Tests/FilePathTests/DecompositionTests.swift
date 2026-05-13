@@ -22,7 +22,7 @@ extension AllTests.DecompositionTests {
     case .windows: expected = tc.windows
     }
 
-    let path = FilePath(tc.input)
+    let path = FilePath(tc.input)!
 
     // anchor
     let anchorDesc = path.anchor?.description

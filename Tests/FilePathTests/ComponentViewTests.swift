@@ -19,7 +19,7 @@ extension AllTests.ComponentViewTests {
     _ str: String, platform: REVIEW_ONLY_Platform
   ) -> FilePath {
     FilePath.REVIEW_ONLY_platform = platform
-    return FilePath(str)
+    return FilePath(str)!
   }
 
   func components(

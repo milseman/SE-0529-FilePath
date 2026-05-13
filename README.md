@@ -56,7 +56,7 @@ The full public surface described in the proposal:
 
 - **`resolve()`** — `preconditionFailure("not yet implemented")`. Resolution requires filesystem access; semantics vary by platform.
 - **`Span`-based APIs** — Swift 6.2 doesn't support the lifetime annotations needed for `Span` returns in package code. Closure-based alternatives (`withCodeUnits`) are provided.
-- **`Component.init?(verbatim:)`** — Windows-only; not yet implemented in this cross-platform reference.
+- **`Component.init?(verbatim:)`** — Windows-only; not yet implemented in this cross-platform reference. This initializer exists to construct components containing `/` (a legal filename character inside `\\?\` paths).
 
 ## Open proposal questions
 
