@@ -65,7 +65,7 @@ extension SystemString {
 
   internal var length: Int {
     let len = nullTerminatedStorage.count - 1
-    assert(len == self.count)
+    _internalInvariant(len == self.count)
     return len
   }
 
@@ -175,7 +175,7 @@ extension SystemString {
       try unsafe $0.withMemoryRebound(
         to: FilePath._Encoding.CodeUnit.self
       ) {
-        unsafe assert($0.last == .zero)
+        unsafe _internalInvariant($0.last == .zero)
         return try unsafe f(.init(start: $0.baseAddress, count: $0.count&-1))
       }
     }
@@ -188,7 +188,7 @@ extension Slice<SystemString> {
   ) rethrows -> T {
     try unsafe base.nullTerminatedStorage.withUnsafeBufferPointer { fullBuf in
       let count = self.count
-      assert(startIndex >= 0 && startIndex + count <= fullBuf.count)
+      _internalInvariant(startIndex >= 0 && startIndex + count <= fullBuf.count)
       return try unsafe fullBuf.baseAddress!.advanced(by: startIndex)
         .withMemoryRebound(to: FilePath.CodeUnit.self, capacity: count) {
           try unsafe f(UnsafeBufferPointer(start: $0, count: count))

@@ -21,8 +21,8 @@ extension FilePath {
     }
 
     internal var _slice: SystemString.SubSequence {
-      assert(_range.lowerBound >= _path._storage.startIndex)
-      assert(_range.upperBound <= _path._storage.endIndex)
+      _internalInvariant(_range.lowerBound >= _path._storage.startIndex)
+      _internalInvariant(_range.upperBound <= _path._storage.endIndex)
       return _path._storage[_range]
     }
 

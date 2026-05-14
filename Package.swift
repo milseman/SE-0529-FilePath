@@ -12,6 +12,7 @@ let package = Package(
         .target(
             name: "FilePath",
             swiftSettings: [
+                .define("FILEPATH_PACKAGE"),
                 .strictMemorySafety(),
                 .unsafeFlags(["-Werror", "StrictMemorySafety"])
             ]

@@ -221,7 +221,7 @@ extension SystemString {
 
 extension SystemString {
   internal func _parseWindowsRootInternal() -> _ParsedWindowsRoot? {
-    assert(_isWindows)
+    _internalInvariant(_isWindows)
 
     var lexer = _Lexer(self)
 
@@ -342,7 +342,7 @@ extension SystemString {
 
 extension SystemString {
   internal mutating func _prenormalizeWindowsRoots() -> Index {
-    assert(_isWindows)
+    _internalInvariant(_isWindows)
 
     var lexer = _Lexer(self)
 
@@ -363,7 +363,7 @@ extension SystemString {
       self.insert(.backslash, at: idx)
       lexer.reset(to: self, at: idx)
       let p = lexer.eatBackslash()
-      assert(p)
+      _internalInvariant(p)
     }
     func expectComponent() {
       _ = lexer.eatComponent()

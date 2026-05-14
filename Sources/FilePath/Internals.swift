@@ -7,6 +7,20 @@
  See https://swift.org/LICENSE.txt for license information
 */
 
+// MARK: - Internal invariants
+
+#if FILEPATH_PACKAGE
+@inline(__always)
+internal func _internalInvariant(
+  _ condition: @autoclosure () -> Bool,
+  _ message: @autoclosure () -> String = "",
+  file: StaticString = #file,
+  line: UInt = #line
+) {
+  assert(condition(), message(), file: file, line: line)
+}
+#endif
+
 // MARK: - Slice helpers
 
 extension Slice where Element: Equatable {
@@ -21,7 +35,7 @@ extension Slice where Element: Equatable {
 
   internal mutating func _eat(asserting e: Element) {
     let p = _eat(e)
-    assert(p != nil)
+    _internalInvariant(p != nil)
   }
 
   internal mutating func _eat(count c: Int) -> Slice {

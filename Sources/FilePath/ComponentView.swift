@@ -27,9 +27,9 @@ extension FilePath {
       } else {
         self._end = path._storage.endIndex
       }
-      assert(_start <= _end)
-      assert(_start >= path._storage.startIndex)
-      assert(_end <= path._storage.endIndex)
+      _internalInvariant(_start <= _end)
+      _internalInvariant(_start >= path._storage.startIndex)
+      _internalInvariant(_end <= path._storage.endIndex)
     }
   }
 }
@@ -114,7 +114,7 @@ extension FilePath.ComponentView: BidirectionalCollection {
 
   public subscript(position: Index) -> FilePath.Component {
     let end = _componentEnd(at: position._storage)
-    assert(end > position._storage, "Component must be non-empty")
+    _internalInvariant(end > position._storage, "Component must be non-empty")
     let isVerbatim = _isVerbatimComponentPath(_path._storage)
     return FilePath.Component(
       _path, position._storage..<end,

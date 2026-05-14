@@ -39,11 +39,11 @@ extension SystemString {
       result = (next, next)
     }
 
-    assert(result.rootEnd >= startIndex && result.rootEnd <= endIndex)
-    assert(result.relativeBegin >= result.rootEnd)
-    assert(result.relativeBegin <= endIndex)
+    _internalInvariant(result.rootEnd >= startIndex && result.rootEnd <= endIndex)
+    _internalInvariant(result.relativeBegin >= result.rootEnd)
+    _internalInvariant(result.relativeBegin <= endIndex)
     // Gap between rootEnd and relativeBegin is at most one separator
-    assert(distance(from: result.rootEnd, to: result.relativeBegin) <= 1)
+    _internalInvariant(distance(from: result.rootEnd, to: result.relativeBegin) <= 1)
     return result
   }
 }
@@ -82,7 +82,7 @@ extension SystemString {
     }
 
     while readIdx < endIndex {
-      assert(writeIdx <= readIdx)
+      _internalInvariant(writeIdx <= readIdx)
 
       let wasSeparator = isSeparator(self[readIdx])
       self.swapAt(writeIdx, readIdx)

@@ -24,7 +24,7 @@ extension SystemString {
   // Try to parse a Darwin-specific anchor.
   // Returns nil if this is just a plain `/` root.
   internal func _parseDarwinAnchor() -> _ParsedDarwinAnchor? {
-    assert(_isDarwin)
+    _internalInvariant(_isDarwin)
     guard !isEmpty else { return nil }
     guard self.first == .slash else { return nil }
 

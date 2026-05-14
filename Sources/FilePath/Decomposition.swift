@@ -15,12 +15,12 @@ extension FilePath {
     get {
       let (rootEnd, _) = _storage._parseRoot()
       guard rootEnd != _storage.startIndex else { return nil }
-      assert(rootEnd <= _storage.endIndex)
+      _internalInvariant(rootEnd <= _storage.endIndex)
       return Anchor(self, end: rootEnd)
     }
     set {
       let (rootEnd, relBegin) = _storage._parseRoot()
-      assert(relBegin >= rootEnd)
+      _internalInvariant(relBegin >= rootEnd)
       if let newAnchor = newValue {
         // Replace old root region (including gap separator) with new
         // anchor, adding a gap separator if the new anchor needs one
@@ -90,7 +90,7 @@ extension FilePath {
       guard !isEmpty else { return false }
       if _storage._hasResourceForkSuffix() { return false }
       let (rootEnd, relBegin) = _storage._parseRoot()
-      assert(relBegin >= rootEnd)
+      _internalInvariant(relBegin >= rootEnd)
       if relBegin < _storage.endIndex {
         // Has relative content; trailing sep is the last byte
         return isSeparator(_storage[_storage.index(before: _storage.endIndex)])
@@ -99,8 +99,8 @@ extension FilePath {
         // the anchor and the end of the string (e.g. `\\server\share\`
         // or `/.vol/1234/5678/`). That gap separator IS the trailing
         // separator.
-        assert(relBegin == _storage.endIndex)
-        assert(isSeparator(_storage[rootEnd]))
+        _internalInvariant(relBegin == _storage.endIndex)
+        _internalInvariant(isSeparator(_storage[rootEnd]))
         return true
       }
       // Anchor-only or empty root, no trailing separator

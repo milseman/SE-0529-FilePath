@@ -20,7 +20,7 @@ extension FilePath {
     }
 
     internal var _slice: SystemString.SubSequence {
-      assert(_end >= _path._storage.startIndex && _end <= _path._storage.endIndex)
+      _internalInvariant(_end >= _path._storage.startIndex && _end <= _path._storage.endIndex)
       return _path._storage[_path._storage.startIndex..<_end]
     }
 
