@@ -10,17 +10,20 @@
 extension FilePath {
   /// Represents an individual component of a file path.
   public struct Component: Sendable {
-    internal var _bytes: [SystemChar]
+    internal var _path: FilePath
+    internal var _range: Range<SystemString.Index>
     internal var _verbatimContext: Bool
 
-    internal init(_ bytes: [SystemChar], verbatimContext: Bool = false) {
-      self._bytes = bytes
+    internal init(_ path: FilePath, _ range: Range<SystemString.Index>, verbatimContext: Bool = false) {
+      self._path = path
+      self._range = range
       self._verbatimContext = verbatimContext
     }
 
-    internal init(_ slice: some Collection<SystemChar>, verbatimContext: Bool = false) {
-      self._bytes = Array(slice)
-      self._verbatimContext = verbatimContext
+    internal var _slice: SystemString.SubSequence {
+      assert(_range.lowerBound >= _path._storage.startIndex)
+      assert(_range.upperBound <= _path._storage.endIndex)
+      return _path._storage[_range]
     }
 
     /// Whether a component is a regular file or directory name, or a special
@@ -34,8 +37,9 @@ extension FilePath {
     /// The kind of this component.
     public var kind: Kind {
       if _verbatimContext { return .regular }
-      if _bytes == [.dot] { return .currentDirectory }
-      if _bytes == [.dot, .dot] { return .parentDirectory }
+      let s = _slice
+      if s.elementsEqual([.dot]) { return .currentDirectory }
+      if s.elementsEqual([.dot, .dot]) { return .parentDirectory }
       return .regular
     }
   }
@@ -45,10 +49,10 @@ extension FilePath {
 
 extension FilePath.Component: Hashable {
   public static func == (lhs: FilePath.Component, rhs: FilePath.Component) -> Bool {
-    lhs._bytes == rhs._bytes
+    lhs._slice.elementsEqual(rhs._slice)
   }
   public func hash(into hasher: inout Hasher) {
-    for c in _bytes {
+    for c in _slice {
       hasher.combine(c)
     }
   }
@@ -56,15 +60,16 @@ extension FilePath.Component: Hashable {
 
 extension FilePath.Component: Comparable {
   public static func < (lhs: FilePath.Component, rhs: FilePath.Component) -> Bool {
-    lhs._bytes.lexicographicallyPrecedes(rhs._bytes)
+    lhs._slice.lexicographicallyPrecedes(rhs._slice)
   }
 }
 
 extension FilePath.Component: CustomStringConvertible, CustomDebugStringConvertible {
   public var description: String {
-    let str = SystemString(_bytes)
-    return unsafe str.withCodeUnits {
-      unsafe String(decoding: $0, as: FilePath._Encoding.self)
+    unsafe _slice.withCodeUnits {
+      unsafe $0.withMemoryRebound(to: FilePath._Encoding.CodeUnit.self) {
+        unsafe String(decoding: $0, as: FilePath._Encoding.self)
+      }
     }
   }
   public var debugDescription: String {

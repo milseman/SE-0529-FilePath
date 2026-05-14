@@ -7,107 +7,34 @@
  See https://swift.org/LICENSE.txt for license information
 */
 
-// MARK: - Internal decomposition helpers
-
-extension FilePath {
-  // Parse the path into its three parts: anchor, components, suffix
-  internal struct _Decomposition {
-    var anchor: Anchor?
-    var components: [Component]
-    var hasTrailingSeparator: Bool
-    var isResourceFork: Bool
-  }
-
-  internal func _decompose() -> _Decomposition {
-    guard !isEmpty else {
-      return _Decomposition(
-        anchor: nil, components: [],
-        hasTrailingSeparator: false, isResourceFork: false)
-    }
-
-    let (rootEnd, relBegin) = _storage._parseRoot()
-    let hasRoot = rootEnd != _storage.startIndex
-
-    // Check for resource fork suffix (Darwin only)
-    let isResourceFork = _storage._hasResourceForkSuffix()
-    let effectiveEnd: SystemString.Index
-    if isResourceFork, let rsrcStart = _storage._resourceForkSuffixStart {
-      effectiveEnd = rsrcStart
-    } else {
-      effectiveEnd = _storage.endIndex
-    }
-
-    // Extract anchor
-    let anchor: Anchor?
-    if hasRoot {
-      let anchorStr = SystemString(Array(_storage[_storage.startIndex..<rootEnd]))
-      anchor = Anchor(anchorStr)
-    } else {
-      anchor = nil
-    }
-
-    // Check for trailing separator.
-    // A trailing separator exists when:
-    // 1. There IS relative content and its last char is a separator, OR
-    // 2. There is NO relative content but there IS a gap separator
-    //    between rootEnd and relBegin (e.g. \\server\share\)
-    let hasTrailingSep: Bool
-    if isResourceFork {
-      hasTrailingSep = false
-    } else if relBegin < effectiveEnd {
-      hasTrailingSep = isSeparator(
-        _storage[_storage.index(before: effectiveEnd)])
-    } else if relBegin > rootEnd {
-      // No relative content, but gap separator exists
-      hasTrailingSep = true
-    } else {
-      hasTrailingSep = false
-    }
-
-    // Parse components from relative portion
-    let isVerbatim = _isVerbatimComponentPath(_storage)
-    var components: [Component] = []
-
-    var idx = relBegin
-    let compEnd = hasTrailingSep && relBegin < effectiveEnd
-      ? _storage.index(before: effectiveEnd)
-      : effectiveEnd
-
-    while idx < compEnd {
-      if isSeparator(_storage[idx]) {
-        idx = _storage.index(after: idx)
-        continue
-      }
-      let compStart = idx
-      while idx < compEnd && !isSeparator(_storage[idx]) {
-        idx = _storage.index(after: idx)
-      }
-      let comp = Component(
-        _storage[compStart..<idx],
-        verbatimContext: isVerbatim)
-      components.append(comp)
-    }
-
-    return _Decomposition(
-      anchor: anchor,
-      components: components,
-      hasTrailingSeparator: hasTrailingSep,
-      isResourceFork: isResourceFork)
-  }
-}
-
 // MARK: - Anchor property
 
 extension FilePath {
   /// The anchor of this path, if any.
   public var anchor: Anchor? {
-    get { _decompose().anchor }
+    get {
+      let (rootEnd, _) = _storage._parseRoot()
+      guard rootEnd != _storage.startIndex else { return nil }
+      assert(rootEnd <= _storage.endIndex)
+      return Anchor(self, end: rootEnd)
+    }
     set {
-      let d = _decompose()
-      self = FilePath(
-        anchor: newValue,
-        d.components,
-        hasTrailingSeparator: d.hasTrailingSeparator)
+      let (rootEnd, relBegin) = _storage._parseRoot()
+      assert(relBegin >= rootEnd)
+      if let newAnchor = newValue {
+        // Replace old root region (including gap separator) with new
+        // anchor, adding a gap separator if the new anchor needs one
+        var newBytes = Array(newAnchor._slice)
+        let hasRelativeContent = relBegin < _storage.endIndex
+        if hasRelativeContent,
+           let last = newBytes.last,
+           !isSeparator(last) && last != .colon {
+          newBytes.append(platformSeparator)
+        }
+        _storage.replaceSubrange(_storage.startIndex..<relBegin, with: newBytes)
+      } else {
+        _storage.removeSubrange(_storage.startIndex..<relBegin)
+      }
     }
   }
 }
@@ -143,7 +70,7 @@ extension FilePath {
     if !_isWindows { return true }
 
     // On Windows, only fully qualified paths are absolute
-    let slice = anchor._storage[...]
+    let slice = anchor._slice
     guard slice.count >= 3 else {
       // `\` (1 char) or `C:` (2 chars) are relative
       return false
@@ -159,7 +86,26 @@ extension FilePath {
   /// Whether this path ends with a directory separator that is
   /// not structurally required by the path's anchor.
   public var hasTrailingSeparator: Bool {
-    get { _decompose().hasTrailingSeparator }
+    get {
+      guard !isEmpty else { return false }
+      if _storage._hasResourceForkSuffix() { return false }
+      let (rootEnd, relBegin) = _storage._parseRoot()
+      assert(relBegin >= rootEnd)
+      if relBegin < _storage.endIndex {
+        // Has relative content; trailing sep is the last byte
+        return isSeparator(_storage[_storage.index(before: _storage.endIndex)])
+      } else if relBegin > rootEnd {
+        // No relative content, but a gap separator exists between
+        // the anchor and the end of the string (e.g. `\\server\share\`
+        // or `/.vol/1234/5678/`). That gap separator IS the trailing
+        // separator.
+        assert(relBegin == _storage.endIndex)
+        assert(isSeparator(_storage[rootEnd]))
+        return true
+      }
+      // Anchor-only or empty root, no trailing separator
+      return false
+    }
     set {
       if newValue == hasTrailingSeparator { return }
       if newValue {
@@ -206,7 +152,7 @@ extension FilePath {
 extension FilePath {
   /// Whether this path ends with a resource fork reference.
   public var isResourceFork: Bool {
-    get { _decompose().isResourceFork }
+    get { _storage._hasResourceForkSuffix() }
     set {
       if newValue == isResourceFork { return }
       if newValue {
@@ -257,7 +203,7 @@ extension FilePath {
     var str = SystemString()
 
     if let anchor = anchor {
-      str.append(contentsOf: anchor._storage)
+      str.append(contentsOf: anchor._slice)
     }
 
     let comps = Array(components)
@@ -269,7 +215,7 @@ extension FilePath {
           // - If anchor ends with separator: no extra sep needed
           // - If anchor ends with `:` (Windows drive-relative): no sep
           // - Otherwise: add separator
-          if let last = anchor._storage.last {
+          if let last = anchor._slice.last {
             if !isSeparator(last) && last != .colon {
               str.append(platformSeparator)
             }
@@ -278,7 +224,7 @@ extension FilePath {
       } else {
         str.append(platformSeparator)
       }
-      str.append(contentsOf: comp._bytes)
+      str.append(contentsOf: comp._slice)
     }
 
     if hasTrailingSeparator {
@@ -287,7 +233,7 @@ extension FilePath {
       } else if anchor != nil {
         // Trailing sep on anchor-only path (e.g., \\server\share\)
         // Add separator if anchor doesn't already end with one
-        if let last = anchor?._storage.last, !isSeparator(last) {
+        if let last = anchor?._slice.last, !isSeparator(last) {
           str.append(platformSeparator)
         }
       }

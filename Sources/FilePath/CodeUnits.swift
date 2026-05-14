@@ -106,14 +106,7 @@ extension FilePath.Component {
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
-    let storage = SystemString(_bytes)
-    return try unsafe storage.withCodeUnits { codeUnits in
-      try unsafe codeUnits.baseAddress!.withMemoryRebound(
-        to: FilePath.CodeUnit.self, capacity: codeUnits.count
-      ) {
-        try unsafe body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
-      }
-    }
+    try unsafe _slice.withCodeUnits(body)
   }
 
   /// Creates a file path component from a buffer of platform code units.
@@ -140,13 +133,7 @@ extension FilePath.Anchor {
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
-    try unsafe _storage.withCodeUnits { codeUnits in
-      try unsafe codeUnits.baseAddress!.withMemoryRebound(
-        to: FilePath.CodeUnit.self, capacity: codeUnits.count
-      ) {
-        try unsafe body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
-      }
-    }
+    try unsafe _slice.withCodeUnits(body)
   }
 }
 

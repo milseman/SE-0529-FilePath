@@ -27,6 +27,9 @@ extension FilePath {
       } else {
         self._end = path._storage.endIndex
       }
+      assert(_start <= _end)
+      assert(_start >= path._storage.startIndex)
+      assert(_end <= path._storage.endIndex)
     }
   }
 }
@@ -111,9 +114,10 @@ extension FilePath.ComponentView: BidirectionalCollection {
 
   public subscript(position: Index) -> FilePath.Component {
     let end = _componentEnd(at: position._storage)
+    assert(end > position._storage, "Component must be non-empty")
     let isVerbatim = _isVerbatimComponentPath(_path._storage)
     return FilePath.Component(
-      _path._storage[position._storage..<end],
+      _path, position._storage..<end,
       verbatimContext: isVerbatim)
   }
 }
@@ -168,7 +172,7 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
       var str = SystemString()
       for (i, comp) in newArray.enumerated() {
         if i > 0 { str.append(platformSeparator) }
-        str.append(contentsOf: comp._bytes)
+        str.append(contentsOf: comp._slice)
       }
 
       // Boundary separators

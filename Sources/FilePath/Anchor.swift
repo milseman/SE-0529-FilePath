@@ -11,14 +11,17 @@ extension FilePath {
   /// The anchor of a file path identifies a reference point
   /// and precedes any components.
   public struct Anchor: Sendable {
-    internal var _storage: SystemString
+    internal var _path: FilePath
+    internal var _end: SystemString.Index
 
-    internal init(_ storage: SystemString) {
-      self._storage = storage
+    internal init(_ path: FilePath, end: SystemString.Index) {
+      self._path = path
+      self._end = end
     }
 
-    internal init(_string string: String) {
-      self._storage = SystemString(string)
+    internal var _slice: SystemString.SubSequence {
+      assert(_end >= _path._storage.startIndex && _end <= _path._storage.endIndex)
+      return _path._storage[_path._storage.startIndex..<_end]
     }
 
     /// Whether this anchor is rooted.
@@ -29,7 +32,7 @@ extension FilePath {
       // roots (relative roots). All absolute anchors are rooted.
       // Wait, `\` IS rooted but not absolute.
       // `C:` is NOT rooted (relative to CWD on that drive).
-      let slice = _storage[...]
+      let slice = _slice
       // `\` - rooted
       if slice.count == 1 && slice.first == .backslash { return true }
       // `C:` - not rooted
@@ -60,7 +63,7 @@ extension FilePath {
     }
 
     private func _parseWindowsAnchor() -> _ParsedWindowsRoot? {
-      _storage._parseWindowsRootInternal()
+      _path._storage._parseWindowsRootInternal()
     }
   }
 }
@@ -69,10 +72,10 @@ extension FilePath {
 
 extension FilePath.Anchor: Hashable {
   public static func == (lhs: FilePath.Anchor, rhs: FilePath.Anchor) -> Bool {
-    lhs._storage.elementsEqual(rhs._storage)
+    lhs._slice.elementsEqual(rhs._slice)
   }
   public func hash(into hasher: inout Hasher) {
-    for c in _storage {
+    for c in _slice {
       hasher.combine(c)
     }
   }
@@ -80,14 +83,16 @@ extension FilePath.Anchor: Hashable {
 
 extension FilePath.Anchor: Comparable {
   public static func < (lhs: FilePath.Anchor, rhs: FilePath.Anchor) -> Bool {
-    lhs._storage.lexicographicallyPrecedes(rhs._storage)
+    lhs._slice.lexicographicallyPrecedes(rhs._slice)
   }
 }
 
 extension FilePath.Anchor: CustomStringConvertible, CustomDebugStringConvertible {
   public var description: String {
-    unsafe _storage.withCodeUnits {
-      unsafe String(decoding: $0, as: FilePath._Encoding.self)
+    unsafe _slice.withCodeUnits {
+      unsafe $0.withMemoryRebound(to: FilePath._Encoding.CodeUnit.self) {
+        unsafe String(decoding: $0, as: FilePath._Encoding.self)
+      }
     }
   }
   public var debugDescription: String {

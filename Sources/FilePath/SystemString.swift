@@ -182,6 +182,21 @@ extension SystemString {
   }
 }
 
+extension Slice<SystemString> {
+  internal func withCodeUnits<T>(
+    _ f: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
+  ) rethrows -> T {
+    try unsafe base.nullTerminatedStorage.withUnsafeBufferPointer { fullBuf in
+      let count = self.count
+      assert(startIndex >= 0 && startIndex + count <= fullBuf.count)
+      return try unsafe fullBuf.baseAddress!.advanced(by: startIndex)
+        .withMemoryRebound(to: FilePath.CodeUnit.self, capacity: count) {
+          try unsafe f(UnsafeBufferPointer(start: $0, count: count))
+        }
+    }
+  }
+}
+
 extension String {
   internal init?(validating str: SystemString) {
     let decoded = str.string

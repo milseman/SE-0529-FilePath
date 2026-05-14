@@ -24,20 +24,27 @@ extension SystemString {
   internal func _parseRoot() -> (
     rootEnd: Index, relativeBegin: Index
   ) {
-    guard !isEmpty else { return (startIndex, startIndex) }
+    let result: (rootEnd: Index, relativeBegin: Index)
 
-    if _isWindows { return _parseWindowsRoot() }
-
-    guard isSeparator(self.first!) else { return (startIndex, startIndex) }
-
-    let next = self.index(after: startIndex)
-
-    // On Darwin, check for extended anchors
-    if _isDarwin, let darwinAnchor = _parseDarwinAnchor() {
-      return (darwinAnchor.anchorEnd, darwinAnchor.relativeBegin)
+    if isEmpty {
+      result = (startIndex, startIndex)
+    } else if _isWindows {
+      result = _parseWindowsRoot()
+    } else if !isSeparator(self.first!) {
+      result = (startIndex, startIndex)
+    } else if _isDarwin, let darwinAnchor = _parseDarwinAnchor() {
+      result = (darwinAnchor.anchorEnd, darwinAnchor.relativeBegin)
+    } else {
+      let next = self.index(after: startIndex)
+      result = (next, next)
     }
 
-    return (next, next)
+    assert(result.rootEnd >= startIndex && result.rootEnd <= endIndex)
+    assert(result.relativeBegin >= result.rootEnd)
+    assert(result.relativeBegin <= endIndex)
+    // Gap between rootEnd and relativeBegin is at most one separator
+    assert(distance(from: result.rootEnd, to: result.relativeBegin) <= 1)
+    return result
   }
 }
 
