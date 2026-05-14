@@ -73,31 +73,6 @@ extension String {
   }
 }
 
-// MARK: - PlatformChar / CodeUnit conversions
-
-extension CInterop.PlatformChar {
-  internal var _platformCodeUnit: CInterop.PlatformUnicodeEncoding.CodeUnit {
-    CInterop.PlatformUnicodeEncoding.CodeUnit(bitPattern: self)
-  }
-}
-
-extension CInterop.PlatformUnicodeEncoding.CodeUnit {
-  internal var _platformChar: CInterop.PlatformChar {
-    CInterop.PlatformChar(bitPattern: self)
-  }
-}
-
-// MARK: - _PlatformStringable protocol
-
-internal protocol _PlatformStringable {
-  func _withPlatformString<Result>(
-    _ body: (UnsafePointer<CInterop.PlatformChar>) throws -> Result
-  ) rethrows -> Result
-
-  init?(_platformString: UnsafePointer<CInterop.PlatformChar>)
-}
-extension String: _PlatformStringable {}
-
 // MARK: - Slice helpers
 
 extension Slice where Element: Equatable {

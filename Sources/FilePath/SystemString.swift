@@ -26,9 +26,6 @@ extension SystemChar {
   internal init(ascii: Unicode.Scalar) {
     self.init(rawValue: numericCast(UInt8(ascii: ascii)))
   }
-  internal init(codeUnit: CInterop.PlatformUnicodeEncoding.CodeUnit) {
-    self.init(rawValue: codeUnit._platformChar)
-  }
 
   internal static var null: SystemChar { SystemChar(0x0) }
   internal static var slash: SystemChar { SystemChar(ascii: "/") }
@@ -37,10 +34,6 @@ extension SystemChar {
   internal static var colon: SystemChar { SystemChar(ascii: ":") }
   internal static var question: SystemChar { SystemChar(ascii: "?") }
   internal static var at: SystemChar { SystemChar(ascii: "@") }
-
-  internal var codeUnit: CInterop.PlatformUnicodeEncoding.CodeUnit {
-    rawValue._platformCodeUnit
-  }
 
   internal var asciiScalar: Unicode.Scalar? {
     guard isASCII else { return nil }
@@ -192,28 +185,6 @@ extension SystemString {
         return try unsafe f(.init(start: $0.baseAddress, count: $0.count&-1))
       }
     }
-  }
-}
-
-extension Slice where Base == SystemString {
-  internal func withCodeUnits<T>(
-    _ f: (UnsafeBufferPointer<CInterop.PlatformUnicodeEncoding.CodeUnit>) throws -> T
-  ) rethrows -> T {
-    try unsafe base.withCodeUnits {
-      try unsafe f(UnsafeBufferPointer(rebasing: $0[indices]))
-    }
-  }
-
-  internal var string: String {
-    unsafe withCodeUnits {
-      unsafe String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
-    }
-  }
-
-  internal func withPlatformString<T>(
-    _ f: (UnsafePointer<CInterop.PlatformChar>) throws -> T
-  ) rethrows -> T {
-    return try unsafe SystemString(self).withPlatformString(f)
   }
 }
 

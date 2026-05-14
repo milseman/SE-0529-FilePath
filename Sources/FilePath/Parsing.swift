@@ -197,11 +197,3 @@ extension SystemString {
     _parseRoot().relativeBegin
   }
 }
-
-// MARK: - Helper: check if slice equals a sequence of ASCII chars
-extension Slice where Base == SystemString {
-  func _equalsASCII(_ s: String) -> Bool {
-    let chars = s.unicodeScalars.map { SystemChar(ascii: $0) }
-    return self.elementsEqual(chars)
-  }
-}

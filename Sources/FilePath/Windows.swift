@@ -405,17 +405,3 @@ extension SystemString {
     return lexer.current
   }
 }
-
-// MARK: - Windows UNC handling for device paths
-// \\.\UNC\server\share is parsed as device path with UNC in device name position.
-// The server and share become components since UNC under device namespace
-// is just a named device "UNC".
-
-extension _ParsedWindowsRoot {
-  // Check if this is a device-UNC path (\\.\UNC\...)
-  // In this case, \\.\UNC is the anchor and server\share\... are components
-  var isDeviceUNC: Bool {
-    guard let sigil = deviceSigil, sigil == .dot else { return false }
-    return false // handled during parsing
-  }
-}
