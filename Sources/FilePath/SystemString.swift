@@ -9,7 +9,7 @@
 
 internal struct SystemChar:
   RawRepresentable, Sendable, Comparable, Hashable {
-  internal typealias RawValue = CInterop.PlatformChar
+  internal typealias RawValue = FilePath.CodeUnit
 
   internal var rawValue: RawValue
 
@@ -169,11 +169,11 @@ extension SystemString {
   }
 
   internal func withCodeUnits<T>(
-    _ f: (UnsafeBufferPointer<CInterop.PlatformUnicodeEncoding.CodeUnit>) throws -> T
+    _ f: (UnsafeBufferPointer<FilePath._Encoding.CodeUnit>) throws -> T
   ) rethrows -> T {
     try unsafe withNullTerminatedSystemChars {
       try unsafe $0.withMemoryRebound(
-        to: CInterop.PlatformUnicodeEncoding.CodeUnit.self
+        to: FilePath._Encoding.CodeUnit.self
       ) {
         unsafe assert($0.last == .zero)
         return try unsafe f(.init(start: $0.baseAddress, count: $0.count&-1))
@@ -184,15 +184,12 @@ extension SystemString {
 
 extension String {
   internal init(decoding str: SystemString) {
-    self = unsafe str.withPlatformString {
-      unsafe String(platformString: $0)
-    }
+    self = str.string
   }
   internal init?(validating str: SystemString) {
-    guard let str = unsafe str.withPlatformString(
-      String.init(validatingPlatformString:)
-    ) else { return nil }
-    self = str
+    let decoded = str.string
+    guard SystemString(decoded) == str else { return nil }
+    self = decoded
   }
 }
 
@@ -202,16 +199,24 @@ extension SystemString: ExpressibleByStringLiteral {
   }
 
   internal init(_ string: String) {
-    self = unsafe string._withPlatformString {
-      unsafe SystemString(platformString: $0)
+    #if os(Windows)
+    var chars = string.utf16.map {
+      SystemChar(rawValue: FilePath.CodeUnit($0))
     }
+    #else
+    var chars = string.utf8.map {
+      SystemChar(rawValue: FilePath.CodeUnit(bitPattern: $0))
+    }
+    #endif
+    chars.append(.null)
+    self.init(nullTerminated: chars)
   }
 }
 
 extension SystemString: CustomStringConvertible, CustomDebugStringConvertible {
   internal var string: String {
     unsafe self.withCodeUnits {
-      unsafe String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
+      unsafe String(decoding: $0, as: FilePath._Encoding.self)
     }
   }
 
@@ -219,32 +224,3 @@ extension SystemString: CustomStringConvertible, CustomDebugStringConvertible {
   internal var debugDescription: String { description.debugDescription }
 }
 
-extension SystemString {
-  internal init(platformString: UnsafePointer<CInterop.PlatformChar>) {
-    let count = unsafe 1 + system_platform_strlen(platformString)
-
-    let chars: Array<SystemChar> = unsafe platformString.withMemoryRebound(
-      to: SystemChar.self, capacity: count
-    ) {
-      let bufPtr = unsafe UnsafeBufferPointer(start: $0, count: count)
-      return unsafe Array(bufPtr)
-    }
-
-    self.init(nullTerminated: chars)
-  }
-
-  internal func withPlatformString<T>(
-    _ f: (UnsafePointer<CInterop.PlatformChar>) throws -> T
-  ) rethrows -> T {
-    try unsafe withNullTerminatedSystemChars { chars in
-      let length = chars.count * MemoryLayout<SystemChar>.stride
-      return try unsafe chars.baseAddress!.withMemoryRebound(
-        to: CInterop.PlatformChar.self,
-        capacity: length / MemoryLayout<CInterop.PlatformChar>.stride
-      ) { pointer in
-        unsafe assert(pointer[self.count] == 0)
-        return try unsafe f(pointer)
-      }
-    }
-  }
-}

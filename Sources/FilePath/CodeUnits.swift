@@ -12,11 +12,18 @@
 extension FilePath {
   /// The type used to represent a "character" in the platform's
   /// native path encoding.
-  ///
-  /// In the real stdlib, this would be CChar on Unix/Darwin and UInt16 on
-  /// Windows. In this reference implementation, it is always CChar since
-  /// we simulate Windows parsing on Unix storage.
+  #if os(Windows)
+  public typealias CodeUnit = UInt16
+  #else
   public typealias CodeUnit = CChar
+  #endif
+
+  /// The Unicode encoding corresponding to `CodeUnit`.
+  #if os(Windows)
+  internal typealias _Encoding = UTF16
+  #else
+  internal typealias _Encoding = UTF8
+  #endif
 }
 
 // MARK: - withCString

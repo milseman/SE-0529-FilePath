@@ -64,7 +64,7 @@ extension FilePath.Component: CustomStringConvertible, CustomDebugStringConverti
   public var description: String {
     let str = SystemString(_bytes)
     return unsafe str.withCodeUnits {
-      unsafe String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
+      unsafe String(decoding: $0, as: FilePath._Encoding.self)
     }
   }
   public var debugDescription: String {

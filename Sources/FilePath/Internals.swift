@@ -7,19 +7,7 @@
  See https://swift.org/LICENSE.txt for license information
 */
 
-// MARK: - CInterop
-
-internal enum CInterop {
-  typealias Char = CChar
-
-  // In the real stdlib, this would be #if os(Windows).
-  // For the reference impl, we always use CChar storage and simulate
-  // Windows parsing at the algorithm level.
-  typealias PlatformChar = CInterop.Char
-  typealias PlatformUnicodeEncoding = UTF8
-}
-
-// MARK: - Platform string helpers
+// MARK: - Imports
 
 #if canImport(Darwin)
 import Darwin
@@ -32,46 +20,6 @@ import WASILibc
 #elseif canImport(Bionic)
 import Bionic
 #endif
-
-internal func system_platform_strlen(
-  _ s: UnsafePointer<CInterop.PlatformChar>
-) -> Int {
-  unsafe strlen(s)
-}
-
-// MARK: - String ↔ platform string
-
-extension String {
-  internal func _withPlatformString<Result>(
-    _ body: (UnsafePointer<CInterop.PlatformChar>) throws -> Result
-  ) rethrows -> Result {
-    try unsafe withCString(body)
-  }
-
-  internal init?(
-    _platformString platformString: UnsafePointer<CInterop.PlatformChar>
-  ) {
-    unsafe self.init(validatingCString: platformString)
-  }
-
-  internal init(
-    _errorCorrectingPlatformString platformString: UnsafePointer<CInterop.PlatformChar>
-  ) {
-    unsafe self.init(cString: platformString)
-  }
-
-  internal init(
-    platformString: UnsafePointer<CInterop.PlatformChar>
-  ) {
-    unsafe self.init(_errorCorrectingPlatformString: platformString)
-  }
-
-  internal init?(
-    validatingPlatformString platformString: UnsafePointer<CInterop.PlatformChar>
-  ) {
-    unsafe self.init(_platformString: platformString)
-  }
-}
 
 // MARK: - Slice helpers
 

@@ -29,7 +29,7 @@ extension FilePath: CustomStringConvertible, CustomDebugStringConvertible {
   /// A textual representation of the file path.
   public var description: String {
     unsafe _storage.withCodeUnits {
-      unsafe String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
+      unsafe String(decoding: $0, as: FilePath._Encoding.self)
     }
   }
 
@@ -64,15 +64,11 @@ extension FilePath: ExpressibleByStringLiteral {
 
 extension String {
   public init(decoding path: FilePath) {
-    self = unsafe path._storage.withPlatformString {
-      unsafe String(platformString: $0)
-    }
+    self = path.description
   }
 
   public init?(validating path: FilePath) {
-    guard let str = unsafe path._storage.withPlatformString(
-      String.init(validatingPlatformString:)
-    ) else { return nil }
+    guard let str = String(validating: path._storage) else { return nil }
     self = str
   }
 
