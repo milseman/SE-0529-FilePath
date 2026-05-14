@@ -7,20 +7,6 @@
  See https://swift.org/LICENSE.txt for license information
 */
 
-// MARK: - Imports
-
-#if canImport(Darwin)
-import Darwin
-#elseif canImport(Glibc)
-import Glibc
-#elseif canImport(Musl)
-import Musl
-#elseif canImport(WASILibc)
-import WASILibc
-#elseif canImport(Bionic)
-import Bionic
-#endif
-
 // MARK: - Slice helpers
 
 extension Slice where Element: Equatable {

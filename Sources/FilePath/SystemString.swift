@@ -183,9 +183,6 @@ extension SystemString {
 }
 
 extension String {
-  internal init(decoding str: SystemString) {
-    self = str.string
-  }
   internal init?(validating str: SystemString) {
     let decoded = str.string
     guard SystemString(decoded) == str else { return nil }
