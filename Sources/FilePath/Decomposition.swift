@@ -117,24 +117,18 @@ extension FilePath {
 extension FilePath {
   /// View the relative path components that make up this path.
   public var components: ComponentView {
-    get { ComponentView(_decompose().components) }
-    set {
-      let d = _decompose()
-      // Suffix (trailing separator / resource fork) is logically
-      // attached to the last component. Strip when it changes.
-      let lastPreserved = d.components.last == newValue._components.last
-      if lastPreserved && d.isResourceFork {
-        self = FilePath(
-          anchor: d.anchor,
-          newValue._components,
-          resourceFork: true)
-      } else {
-        self = FilePath(
-          anchor: d.anchor,
-          newValue._components,
-          hasTrailingSeparator: lastPreserved
-            ? d.hasTrailingSeparator : false)
+    get { ComponentView(self) }
+    _modify {
+      let originalAnchor = self.anchor
+      var view = ComponentView(self)
+      self = FilePath()
+      defer {
+        self = view._path
+        if self.anchor != originalAnchor {
+          self.anchor = originalAnchor
+        }
       }
+      yield &view
     }
   }
 }
@@ -220,7 +214,12 @@ extension FilePath {
         if hasTrailingSeparator {
           hasTrailingSeparator = false
         }
-        let suffix = SystemString._resourceForkSuffix
+        var suffix = SystemString._resourceForkSuffix
+        // Avoid double separator when path already ends with one
+        if !_storage.isEmpty && isSeparator(_storage.last!)
+           && !suffix.isEmpty && isSeparator(suffix.first!) {
+          suffix.removeFirst()
+        }
         _storage.append(contentsOf: suffix)
       } else {
         // Remove resource fork suffix
@@ -294,7 +293,7 @@ extension FilePath {
       }
     }
 
-    self._storage = str
+    self.init(normalizing: str)
   }
 
   /// Creates a file path from a decomposed form with a resource fork suffix.

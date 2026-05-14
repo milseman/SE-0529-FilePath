@@ -22,6 +22,17 @@ struct Expected {
   var kinds: [FilePath.Component.Kind]? = nil
 }
 
+// Test-only helpers for integer-offset indexing into ComponentView.
+extension FilePath.ComponentView {
+  func idx(_ offset: Int) -> Index {
+    index(startIndex, offsetBy: offset)
+  }
+
+  func range(_ r: Range<Int>) -> Range<Index> {
+    idx(r.lowerBound) ..< idx(r.upperBound)
+  }
+}
+
 struct PathTestCase {
   var input: String
   var linux: Expected

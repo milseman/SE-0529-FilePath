@@ -150,19 +150,28 @@ extension FilePath.ComponentView {
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
-    var str = SystemString()
-    for (i, comp) in _components.enumerated() {
-      if i > 0 {
-        str.append(platformSeparator)
+    // The component view spans [_start, _end) in the path's storage.
+    // Strip trailing separator (it is suffix, not part of components).
+    var end = _end
+    if end > _start
+       && isSeparator(_path._storage[_path._storage.index(before: end)]) {
+      let (_, relBegin) = _path._storage._parseRoot()
+      let sepIdx = _path._storage.index(before: end)
+      if sepIdx >= relBegin {
+        end = sepIdx
       }
-      str.append(contentsOf: comp._bytes)
     }
-    return try str.withCodeUnits { codeUnits in
-      try codeUnits.baseAddress!.withMemoryRebound(
-        to: FilePath.CodeUnit.self, capacity: codeUnits.count
-      ) {
-        try body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
-      }
+    let count = _path._storage.distance(from: _start, to: end)
+    if count == 0 {
+      return try body(UnsafeBufferPointer(start: nil, count: 0))
+    }
+    return try _path._storage.withNullTerminatedSystemChars { fullBuf in
+      let startOffset = _path._storage.distance(
+        from: _path._storage.startIndex, to: _start)
+      return try fullBuf.baseAddress!.advanced(by: startOffset)
+        .withMemoryRebound(to: FilePath.CodeUnit.self, capacity: count) {
+          try body(UnsafeBufferPointer(start: $0, count: count))
+        }
     }
   }
 }

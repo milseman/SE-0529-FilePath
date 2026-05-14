@@ -151,7 +151,7 @@ extension AllTests.ComponentViewTests {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/local/bin")
     var cv = path.components
-    cv.insert("usr", at: 0)
+    cv.insert("usr", at: cv.idx(0))
     path.components = cv
 
     #expect(path.description == "/usr/local/bin")
@@ -162,7 +162,7 @@ extension AllTests.ComponentViewTests {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/bin")
     var cv = path.components
-    cv.insert("local", at: 1)
+    cv.insert("local", at: cv.idx(1))
     path.components = cv
 
     #expect(path.description == "/usr/local/bin")
@@ -209,7 +209,7 @@ extension AllTests.ComponentViewTests {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
     var cv = path.components
-    cv.remove(at: 1) // remove "local"
+    cv.remove(at: cv.idx(1)) // remove "local"
     path.components = cv
 
     #expect(path.description == "/usr/bin")
@@ -249,7 +249,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr/local/bin")
     var cv = path.components
     let replacement: [FilePath.Component] = ["share", "man"]
-    cv.replaceSubrange(1..<2, with: replacement) // replace "local"
+    cv.replaceSubrange(cv.range(1..<2), with: replacement) // replace "local"
     path.components = cv
 
     #expect(path.description == "/usr/share/man/bin")
@@ -273,7 +273,7 @@ extension AllTests.ComponentViewTests {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
     var cv = path.components
-    cv.replaceSubrange(1..<3, with: []) // remove "local" and "bin"
+    cv.replaceSubrange(cv.range(1..<3), with: []) // remove "local" and "bin"
     path.components = cv
 
     #expect(path.description == "/usr")
@@ -285,7 +285,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr/bin")
     var cv = path.components
     let insertion: [FilePath.Component] = ["local"]
-    cv.replaceSubrange(1..<1, with: insertion) // insert before "bin"
+    cv.replaceSubrange(cv.range(1..<1), with: insertion) // insert before "bin"
     path.components = cv
 
     #expect(path.description == "/usr/local/bin")
@@ -320,17 +320,14 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func appendDotToRelative() {
-    // Inserting a "." component directly into the component array
-    // and writing back: the reconstruction does NOT re-normalize,
-    // so the dot persists in the path string
+    // With the view-on-storage architecture, appending a "." component
+    // directly mutates storage without renormalization. The dot persists.
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b")
-    var cv = path.components
-    cv.append(".")
-    path.components = cv
+    path.components.append(".")
 
-    // Reconstruction doesn't normalize, so we get the dot
     #expect(path.components.map(\.description) == ["a", "b", "."])
+    #expect(path.description == "a/b/.")
   }
 
   @Test
@@ -652,7 +649,7 @@ extension AllTests.ComponentViewTests {
 
     var cv = path.components
     cv.replaceSubrange(
-      cv.endIndex - 1 ..< cv.endIndex,
+      cv.index(before: cv.endIndex) ..< cv.endIndex,
       with: ["d" as FilePath.Component])
     path.components = cv
 
@@ -711,7 +708,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.hasTrailingSeparator)
 
     var cv = path.components
-    cv.insert("z", at: 0)
+    cv.insert("z", at: cv.idx(0))
     path.components = cv
 
     #expect(path.hasTrailingSeparator)
@@ -724,7 +721,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b/c/")
 
     var cv = path.components
-    cv.replaceSubrange(0..<1, with: ["x" as FilePath.Component])
+    cv.replaceSubrange(cv.range(0..<1), with: ["x" as FilePath.Component])
     path.components = cv
 
     #expect(path.hasTrailingSeparator)
@@ -750,7 +747,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/a/c/")
 
     var cv = path.components
-    cv.insert("b", at: 1)
+    cv.insert("b", at: cv.idx(1))
     path.components = cv
 
     #expect(path.hasTrailingSeparator)
@@ -838,7 +835,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.components.map(\.description) == ["file"])
 
     var cv = path.components
-    cv.replaceSubrange(0..<1, with: ["other" as FilePath.Component])
+    cv.replaceSubrange(cv.range(0..<1), with: ["other" as FilePath.Component])
     path.components = cv
 
     #expect(!path.isResourceFork)
@@ -869,7 +866,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.components.map(\.description) == ["file"])
 
     var cv = path.components
-    cv.insert("dir", at: 0)
+    cv.insert("dir", at: cv.idx(0))
     path.components = cv
 
     #expect(path.isResourceFork)
@@ -908,6 +905,38 @@ extension AllTests.ComponentViewTests {
 
   static let reparseHazardsEnabled = false
 
+  // MARK: - Structural suffix rule corner cases
+
+  @Test
+  func trailingSepStrippedOnRemoveLastEvenWithEqualNeighbor() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("/a/b/b/")
+    path.components.removeLast()
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == "/a/b")
+  }
+
+  @Test
+  func replaceAllDropsSuffixEvenWhenLastByteEqual() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("/a/b/c/")
+    path.components.replaceSubrange(
+      path.components.startIndex..<path.components.endIndex,
+      with: ["x", "y", "c"] as [FilePath.Component])
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == "/x/y/c")
+  }
+
+  @Test
+  func removeAllOnUNCDropsGapSeparator() {
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"\\server\share\"#)
+    #expect(path.hasTrailingSeparator)
+    path.components.removeAll()
+    #expect(!path.hasTrailingSeparator)
+    #expect(path.description == #"\\server\share"#)
+  }
+
   // -- Darwin anchor hazards --
 
   @Test(.enabled(if: reparseHazardsEnabled))
@@ -919,7 +948,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.anchor?.description == "/")
 
     var cv = path.components
-    cv.insert(".nofollow", at: 0)
+    cv.insert(".nofollow", at: cv.idx(0))
     path.components = cv
 
     // After reconstruction the string is "/.nofollow/foo/bar"
@@ -944,7 +973,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr/bin")
 
     var cv = path.components
-    cv.insert(".resolve", at: 0)
+    cv.insert(".resolve", at: cv.idx(0))
     path.components = cv
 
     #expect(path.description == "/.resolve/usr/bin")
@@ -964,7 +993,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/1234/5678/file")
 
     var cv = path.components
-    cv.insert(".vol", at: 0)
+    cv.insert(".vol", at: cv.idx(0))
     path.components = cv
 
     #expect(path.description == "/.vol/1234/5678/file")
@@ -1005,7 +1034,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.components.count == 3)
 
     var cv = path.components
-    cv.replaceSubrange(0..<1, with: [".vol" as FilePath.Component])
+    cv.replaceSubrange(cv.range(0..<1), with: [".vol" as FilePath.Component])
     path.components = cv
 
     #expect(path.description == "/.vol/1234/5678")
@@ -1022,7 +1051,7 @@ extension AllTests.ComponentViewTests {
     FilePath.REVIEW_ONLY_platform = .darwin
     var path = FilePath("a/b")
     var cv = path.components
-    cv.insert(".nofollow", at: 0)
+    cv.insert(".nofollow", at: cv.idx(0))
     path.components = cv
 
     // No root, so .nofollow is just a regular component
@@ -1119,7 +1148,7 @@ extension AllTests.ComponentViewTests {
     #expect(!path.isResourceFork)
 
     var cv = path.components
-    cv.replaceSubrange(cv.endIndex - 1 ..< cv.endIndex,
+    cv.replaceSubrange(cv.index(before: cv.endIndex) ..< cv.endIndex,
                        with: ["rsrc" as FilePath.Component])
     path.components = cv
 
