@@ -36,7 +36,7 @@ import Bionic
 internal func system_platform_strlen(
   _ s: UnsafePointer<CInterop.PlatformChar>
 ) -> Int {
-  strlen(s)
+  unsafe strlen(s)
 }
 
 // MARK: - String ↔ platform string
@@ -45,31 +45,31 @@ extension String {
   internal func _withPlatformString<Result>(
     _ body: (UnsafePointer<CInterop.PlatformChar>) throws -> Result
   ) rethrows -> Result {
-    try withCString(body)
+    try unsafe withCString(body)
   }
 
   internal init?(
     _platformString platformString: UnsafePointer<CInterop.PlatformChar>
   ) {
-    self.init(validatingCString: platformString)
+    unsafe self.init(validatingCString: platformString)
   }
 
   internal init(
     _errorCorrectingPlatformString platformString: UnsafePointer<CInterop.PlatformChar>
   ) {
-    self.init(cString: platformString)
+    unsafe self.init(cString: platformString)
   }
 
   internal init(
     platformString: UnsafePointer<CInterop.PlatformChar>
   ) {
-    self.init(_errorCorrectingPlatformString: platformString)
+    unsafe self.init(_errorCorrectingPlatformString: platformString)
   }
 
   internal init?(
     validatingPlatformString platformString: UnsafePointer<CInterop.PlatformChar>
   ) {
-    self.init(_platformString: platformString)
+    unsafe self.init(_platformString: platformString)
   }
 }
 

@@ -154,8 +154,8 @@ extension SystemString: RangeReplaceableCollection {
   internal func withContiguousStorageIfAvailable<R>(
     _ body: (UnsafeBufferPointer<SystemChar>) throws -> R
   ) rethrows -> R? {
-    try nullTerminatedStorage.withContiguousStorageIfAvailable {
-      try body(.init(start: $0.baseAddress, count: $0.count-1))
+    try unsafe nullTerminatedStorage.withContiguousStorageIfAvailable {
+      try unsafe body(.init(start: $0.baseAddress, count: $0.count-1))
     }
   }
 
@@ -163,11 +163,11 @@ extension SystemString: RangeReplaceableCollection {
     _ body: (inout UnsafeMutableBufferPointer<SystemChar>) throws -> R
   ) rethrows -> R? {
     defer { _invariantCheck() }
-    return try nullTerminatedStorage.withContiguousMutableStorageIfAvailable {
-      var buffer = UnsafeMutableBufferPointer<SystemChar>(
+    return try unsafe nullTerminatedStorage.withContiguousMutableStorageIfAvailable {
+      var buffer = unsafe UnsafeMutableBufferPointer<SystemChar>(
         start: $0.baseAddress, count: $0.count-1
       )
-      return try body(&buffer)
+      return try unsafe body(&buffer)
     }
   }
 }
@@ -178,18 +178,18 @@ extension SystemString {
   internal func withNullTerminatedSystemChars<T>(
     _ f: (UnsafeBufferPointer<SystemChar>) throws -> T
   ) rethrows -> T {
-    try nullTerminatedStorage.withUnsafeBufferPointer(f)
+    try unsafe nullTerminatedStorage.withUnsafeBufferPointer(f)
   }
 
   internal func withCodeUnits<T>(
     _ f: (UnsafeBufferPointer<CInterop.PlatformUnicodeEncoding.CodeUnit>) throws -> T
   ) rethrows -> T {
-    try withNullTerminatedSystemChars {
-      try $0.withMemoryRebound(
+    try unsafe withNullTerminatedSystemChars {
+      try unsafe $0.withMemoryRebound(
         to: CInterop.PlatformUnicodeEncoding.CodeUnit.self
       ) {
-        assert($0.last == .zero)
-        return try f(.init(start: $0.baseAddress, count: $0.count&-1))
+        unsafe assert($0.last == .zero)
+        return try unsafe f(.init(start: $0.baseAddress, count: $0.count&-1))
       }
     }
   }
@@ -199,32 +199,32 @@ extension Slice where Base == SystemString {
   internal func withCodeUnits<T>(
     _ f: (UnsafeBufferPointer<CInterop.PlatformUnicodeEncoding.CodeUnit>) throws -> T
   ) rethrows -> T {
-    try base.withCodeUnits {
-      try f(UnsafeBufferPointer(rebasing: $0[indices]))
+    try unsafe base.withCodeUnits {
+      try unsafe f(UnsafeBufferPointer(rebasing: $0[indices]))
     }
   }
 
   internal var string: String {
-    withCodeUnits {
-      String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
+    unsafe withCodeUnits {
+      unsafe String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
     }
   }
 
   internal func withPlatformString<T>(
     _ f: (UnsafePointer<CInterop.PlatformChar>) throws -> T
   ) rethrows -> T {
-    return try SystemString(self).withPlatformString(f)
+    return try unsafe SystemString(self).withPlatformString(f)
   }
 }
 
 extension String {
   internal init(decoding str: SystemString) {
-    self = str.withPlatformString {
-      String(platformString: $0)
+    self = unsafe str.withPlatformString {
+      unsafe String(platformString: $0)
     }
   }
   internal init?(validating str: SystemString) {
-    guard let str = str.withPlatformString(
+    guard let str = unsafe str.withPlatformString(
       String.init(validatingPlatformString:)
     ) else { return nil }
     self = str
@@ -237,16 +237,16 @@ extension SystemString: ExpressibleByStringLiteral {
   }
 
   internal init(_ string: String) {
-    self = string._withPlatformString {
-      SystemString(platformString: $0)
+    self = unsafe string._withPlatformString {
+      unsafe SystemString(platformString: $0)
     }
   }
 }
 
 extension SystemString: CustomStringConvertible, CustomDebugStringConvertible {
   internal var string: String {
-    self.withCodeUnits {
-      String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
+    unsafe self.withCodeUnits {
+      unsafe String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
     }
   }
 
@@ -256,13 +256,13 @@ extension SystemString: CustomStringConvertible, CustomDebugStringConvertible {
 
 extension SystemString {
   internal init(platformString: UnsafePointer<CInterop.PlatformChar>) {
-    let count = 1 + system_platform_strlen(platformString)
+    let count = unsafe 1 + system_platform_strlen(platformString)
 
-    let chars: Array<SystemChar> = platformString.withMemoryRebound(
+    let chars: Array<SystemChar> = unsafe platformString.withMemoryRebound(
       to: SystemChar.self, capacity: count
     ) {
-      let bufPtr = UnsafeBufferPointer(start: $0, count: count)
-      return Array(bufPtr)
+      let bufPtr = unsafe UnsafeBufferPointer(start: $0, count: count)
+      return unsafe Array(bufPtr)
     }
 
     self.init(nullTerminated: chars)
@@ -271,14 +271,14 @@ extension SystemString {
   internal func withPlatformString<T>(
     _ f: (UnsafePointer<CInterop.PlatformChar>) throws -> T
   ) rethrows -> T {
-    try withNullTerminatedSystemChars { chars in
+    try unsafe withNullTerminatedSystemChars { chars in
       let length = chars.count * MemoryLayout<SystemChar>.stride
-      return try chars.baseAddress!.withMemoryRebound(
+      return try unsafe chars.baseAddress!.withMemoryRebound(
         to: CInterop.PlatformChar.self,
         capacity: length / MemoryLayout<CInterop.PlatformChar>.stride
       ) { pointer in
-        assert(pointer[self.count] == 0)
-        return try f(pointer)
+        unsafe assert(pointer[self.count] == 0)
+        return try unsafe f(pointer)
       }
     }
   }

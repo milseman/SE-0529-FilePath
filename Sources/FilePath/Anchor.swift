@@ -86,8 +86,8 @@ extension FilePath.Anchor: Comparable {
 
 extension FilePath.Anchor: CustomStringConvertible, CustomDebugStringConvertible {
   public var description: String {
-    _storage.withCodeUnits {
-      String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
+    unsafe _storage.withCodeUnits {
+      unsafe String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
     }
   }
   public var debugDescription: String {

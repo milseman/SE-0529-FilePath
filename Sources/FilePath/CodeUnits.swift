@@ -34,11 +34,11 @@ extension FilePath {
     let storage = _storage.nullTerminatedStorage
     let count = storage.count
     let buf = UnsafeMutablePointer<CodeUnit>.allocate(capacity: count)
-    defer { buf.deallocate() }
+    defer { unsafe buf.deallocate() }
     for i in 0..<count {
-      buf[i] = storage[i].rawValue
+      unsafe buf[i] = storage[i].rawValue
     }
-    return try body(UnsafePointer(buf))
+    return try unsafe body(UnsafePointer(buf))
   }
 }
 
@@ -57,11 +57,11 @@ extension FilePath {
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<CodeUnit>) throws -> T
   ) rethrows -> T {
-    try _storage.withCodeUnits { codeUnits in
-      try codeUnits.baseAddress!.withMemoryRebound(
+    try unsafe _storage.withCodeUnits { codeUnits in
+      try unsafe codeUnits.baseAddress!.withMemoryRebound(
         to: CodeUnit.self, capacity: codeUnits.count
       ) {
-        try body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
+        try unsafe body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
       }
     }
   }
@@ -72,7 +72,7 @@ extension FilePath {
   /// if the buffer contains `NUL`, which is not a valid path byte
   /// on any supported platform.
   public init?(codeUnits: UnsafeBufferPointer<CodeUnit>) {
-    let chars = Array(codeUnits).map { SystemChar(rawValue: $0) }
+    let chars = unsafe Array(codeUnits).map { SystemChar(rawValue: $0) }
     guard !chars.contains(.null) else { return nil }
     var nullTerminated = chars
     nullTerminated.append(.null)
@@ -100,11 +100,11 @@ extension FilePath.Component {
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
     let storage = SystemString(_bytes)
-    return try storage.withCodeUnits { codeUnits in
-      try codeUnits.baseAddress!.withMemoryRebound(
+    return try unsafe storage.withCodeUnits { codeUnits in
+      try unsafe codeUnits.baseAddress!.withMemoryRebound(
         to: FilePath.CodeUnit.self, capacity: codeUnits.count
       ) {
-        try body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
+        try unsafe body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
       }
     }
   }
@@ -115,7 +115,7 @@ extension FilePath.Component {
   /// otherwise invalid (e.g. contain more than one component).
   public init?(codeUnits: UnsafeBufferPointer<FilePath.CodeUnit>) {
     guard codeUnits.count > 0 else { return nil }
-    let chars = Array(codeUnits).map { SystemChar(rawValue: $0) }
+    let chars = unsafe Array(codeUnits).map { SystemChar(rawValue: $0) }
     guard !chars.contains(.null) else { return nil }
     let str = SystemString(chars)
     let path = FilePath(normalizing: str)
@@ -133,11 +133,11 @@ extension FilePath.Anchor {
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
-    try _storage.withCodeUnits { codeUnits in
-      try codeUnits.baseAddress!.withMemoryRebound(
+    try unsafe _storage.withCodeUnits { codeUnits in
+      try unsafe codeUnits.baseAddress!.withMemoryRebound(
         to: FilePath.CodeUnit.self, capacity: codeUnits.count
       ) {
-        try body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
+        try unsafe body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
       }
     }
   }
@@ -163,14 +163,14 @@ extension FilePath.ComponentView {
     }
     let count = _path._storage.distance(from: _start, to: end)
     if count == 0 {
-      return try body(UnsafeBufferPointer(start: nil, count: 0))
+      return try unsafe body(UnsafeBufferPointer(start: nil, count: 0))
     }
-    return try _path._storage.withNullTerminatedSystemChars { fullBuf in
+    return try unsafe _path._storage.withNullTerminatedSystemChars { fullBuf in
       let startOffset = _path._storage.distance(
         from: _path._storage.startIndex, to: _start)
-      return try fullBuf.baseAddress!.advanced(by: startOffset)
+      return try unsafe fullBuf.baseAddress!.advanced(by: startOffset)
         .withMemoryRebound(to: FilePath.CodeUnit.self, capacity: count) {
-          try body(UnsafeBufferPointer(start: $0, count: count))
+          try unsafe body(UnsafeBufferPointer(start: $0, count: count))
         }
     }
   }

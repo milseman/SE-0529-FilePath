@@ -63,8 +63,8 @@ extension FilePath.Component: Comparable {
 extension FilePath.Component: CustomStringConvertible, CustomDebugStringConvertible {
   public var description: String {
     let str = SystemString(_bytes)
-    return str.withCodeUnits {
-      String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
+    return unsafe str.withCodeUnits {
+      unsafe String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
     }
   }
   public var debugDescription: String {

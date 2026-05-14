@@ -17,8 +17,8 @@ public enum REVIEW_ONLY_Platform: Sendable {
 extension FilePath {
   /// NOTE: FOR REVIEW ONLY. Compiled away in real stdlib.
   public static var REVIEW_ONLY_platform: REVIEW_ONLY_Platform {
-    get { _reviewOnlyPlatform }
-    set { _reviewOnlyPlatform = newValue }
+    get { unsafe _reviewOnlyPlatform }
+    set { unsafe _reviewOnlyPlatform = newValue }
   }
 }
 
@@ -33,8 +33,8 @@ internal var _reviewOnlyPlatform: REVIEW_ONLY_Platform = {
   #endif
 }()
 
-internal var _isWindows: Bool { _reviewOnlyPlatform == .windows }
-internal var _isDarwin: Bool { _reviewOnlyPlatform == .darwin }
+internal var _isWindows: Bool { unsafe _reviewOnlyPlatform == .windows }
+internal var _isDarwin: Bool { unsafe _reviewOnlyPlatform == .darwin }
 
 // MARK: - Precondition recording
 
@@ -51,7 +51,7 @@ internal func _reviewOnlyPrecondition(
   file: StaticString = #file, line: UInt = #line
 ) {
   if !condition() {
-    _reviewOnlyPreconditionFailures.append(
+    unsafe _reviewOnlyPreconditionFailures.append(
       _PreconditionRecord(message: message()))
   }
 }

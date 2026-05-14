@@ -9,7 +9,13 @@ let package = Package(
         .executable(name: "filepath-play", targets: ["filepath-play"]),
     ],
     targets: [
-        .target(name: "FilePath"),
+        .target(
+            name: "FilePath",
+            swiftSettings: [
+                .strictMemorySafety(),
+                .unsafeFlags(["-Werror", "StrictMemorySafety"])
+            ]
+        ),
         .executableTarget(
             name: "filepath-play",
             dependencies: ["FilePath"]

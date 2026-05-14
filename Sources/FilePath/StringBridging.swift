@@ -28,8 +28,8 @@ extension FilePath: Comparable {
 extension FilePath: CustomStringConvertible, CustomDebugStringConvertible {
   /// A textual representation of the file path.
   public var description: String {
-    _storage.withCodeUnits {
-      String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
+    unsafe _storage.withCodeUnits {
+      unsafe String(decoding: $0, as: CInterop.PlatformUnicodeEncoding.self)
     }
   }
 
@@ -64,13 +64,13 @@ extension FilePath: ExpressibleByStringLiteral {
 
 extension String {
   public init(decoding path: FilePath) {
-    self = path._storage.withPlatformString {
-      String(platformString: $0)
+    self = unsafe path._storage.withPlatformString {
+      unsafe String(platformString: $0)
     }
   }
 
   public init?(validating path: FilePath) {
-    guard let str = path._storage.withPlatformString(
+    guard let str = unsafe path._storage.withPlatformString(
       String.init(validatingPlatformString:)
     ) else { return nil }
     self = str
