@@ -35,23 +35,3 @@ internal var _reviewOnlyPlatform: REVIEW_ONLY_Platform = {
 
 internal var _isWindows: Bool { unsafe _reviewOnlyPlatform == .windows }
 internal var _isDarwin: Bool { unsafe _reviewOnlyPlatform == .darwin }
-
-// MARK: - Precondition recording
-
-internal struct _PreconditionRecord {
-  var message: String
-}
-
-nonisolated(unsafe)
-internal var _reviewOnlyPreconditionFailures: [_PreconditionRecord] = []
-
-internal func _reviewOnlyPrecondition(
-  _ condition: @autoclosure () -> Bool,
-  _ message: @autoclosure () -> String = "",
-  file: StaticString = #file, line: UInt = #line
-) {
-  if !condition() {
-    unsafe _reviewOnlyPreconditionFailures.append(
-      _PreconditionRecord(message: message()))
-  }
-}

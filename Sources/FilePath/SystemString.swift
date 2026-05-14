@@ -50,12 +50,6 @@ extension SystemChar {
     return (UInt8(ascii: "a") ... UInt8(ascii: "z")).contains(asciiRaw) ||
            (UInt8(ascii: "A") ... UInt8(ascii: "Z")).contains(asciiRaw)
   }
-
-  internal var isDigit: Bool {
-    guard isASCII else { return false }
-    let asciiRaw: UInt8 = numericCast(rawValue)
-    return (UInt8(ascii: "0") ... UInt8(ascii: "9")).contains(asciiRaw)
-  }
 }
 
 internal struct SystemString: Sendable {

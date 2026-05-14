@@ -137,20 +137,6 @@ extension Slice where Element: Equatable {
   }
 }
 
-// MARK: - Utility functions
-
-internal func _dropCommonPrefix<C: Collection>(
-  _ lhs: C, _ rhs: C
-) -> (C.SubSequence, C.SubSequence)
-where C.Element: Equatable {
-  var (lhs, rhs) = (lhs[...], rhs[...])
-  while lhs.first != nil && lhs.first == rhs.first {
-    lhs.removeFirst()
-    rhs.removeFirst()
-  }
-  return (lhs, rhs)
-}
-
 extension MutableCollection where Element: Equatable {
   mutating func _replaceAll(_ e: Element, with new: Element) {
     for idx in self.indices {

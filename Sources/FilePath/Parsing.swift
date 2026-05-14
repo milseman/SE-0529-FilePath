@@ -18,10 +18,6 @@ internal func isSeparator(_ c: SystemChar) -> Bool {
   c == platformSeparator
 }
 
-internal func isPrenormalSeparator(_ c: SystemChar) -> Bool {
-  c == genericSeparator || c == platformSeparator
-}
-
 // MARK: - Root parsing
 
 extension SystemString {
@@ -48,14 +44,7 @@ extension SystemString {
 // MARK: - Separator normalization
 
 extension SystemString {
-  fileprivate func _hasTrailingSeparator() -> Bool {
-    guard !isEmpty else { return false }
-    let (_, relBegin) = _parseRoot()
-    guard relBegin != endIndex || relBegin == startIndex else { return false }
-    return isSeparator(self.last!)
-  }
-
-  // Normalize separators: coaleasce repeated seps.
+  // Normalize separators: coalesce repeated seps.
   // On Windows, convert / to \ and prenormalize roots.
   // Does NOT remove trailing separators (new behavior).
   internal mutating func _normalizeSeparators() {
@@ -187,13 +176,5 @@ extension SystemString {
     }
 
     self = SystemString(result)
-  }
-}
-
-// MARK: - Component parsing
-
-extension SystemString {
-  internal var _relativePathStart: Index {
-    _parseRoot().relativeBegin
   }
 }
