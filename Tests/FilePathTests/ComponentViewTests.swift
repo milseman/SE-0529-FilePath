@@ -89,9 +89,7 @@ extension AllTests.ComponentViewTests {
   func appendToRelative() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b")
-    var cv = path.components
-    cv.append("c")
-    path.components = cv
+    path.components.append("c")
 
     #expect(path.description == "a/b/c")
     #expect(path.components.map(\.description) == ["a", "b", "c"])
@@ -101,9 +99,7 @@ extension AllTests.ComponentViewTests {
   func appendToAbsolute() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr")
-    var cv = path.components
-    cv.append("local")
-    path.components = cv
+    path.components.append("local")
 
     #expect(path.description == "/usr/local")
     #expect(path.anchor?.description == "/")
@@ -113,9 +109,7 @@ extension AllTests.ComponentViewTests {
   func appendToEmpty() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("")
-    var cv = path.components
-    cv.append("hello")
-    path.components = cv
+    path.components.append("hello")
 
     #expect(path.description == "hello")
   }
@@ -124,9 +118,7 @@ extension AllTests.ComponentViewTests {
   func appendToRootOnly() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/")
-    var cv = path.components
-    cv.append("usr")
-    path.components = cv
+    path.components.append("usr")
 
     #expect(path.description == "/usr")
     #expect(path.anchor?.description == "/")
@@ -136,10 +128,7 @@ extension AllTests.ComponentViewTests {
   func appendContentsOf() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr")
-    var cv = path.components
-    let newComps: [FilePath.Component] = ["local", "bin"]
-    cv.append(contentsOf: newComps)
-    path.components = cv
+    path.components.append(contentsOf: ["local", "bin"] as [FilePath.Component])
 
     #expect(path.description == "/usr/local/bin")
   }
@@ -150,9 +139,7 @@ extension AllTests.ComponentViewTests {
   func insertAtBeginning() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/local/bin")
-    var cv = path.components
-    cv.insert("usr", at: cv.idx(0))
-    path.components = cv
+    path.components.insert("usr", at: path.components.idx(0))
 
     #expect(path.description == "/usr/local/bin")
   }
@@ -161,9 +148,7 @@ extension AllTests.ComponentViewTests {
   func insertInMiddle() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/bin")
-    var cv = path.components
-    cv.insert("local", at: cv.idx(1))
-    path.components = cv
+    path.components.insert("local", at: path.components.idx(1))
 
     #expect(path.description == "/usr/local/bin")
   }
@@ -172,9 +157,7 @@ extension AllTests.ComponentViewTests {
   func insertAtEnd() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local")
-    var cv = path.components
-    cv.insert("bin", at: cv.endIndex)
-    path.components = cv
+    path.components.insert("bin", at: path.components.endIndex)
 
     #expect(path.description == "/usr/local/bin")
   }
@@ -185,9 +168,7 @@ extension AllTests.ComponentViewTests {
   func removeFirst() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
-    var cv = path.components
-    cv.removeFirst()
-    path.components = cv
+    path.components.removeFirst()
 
     #expect(path.description == "/local/bin")
     #expect(path.anchor?.description == "/")
@@ -197,9 +178,7 @@ extension AllTests.ComponentViewTests {
   func removeLast() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
-    var cv = path.components
-    cv.removeLast()
-    path.components = cv
+    path.components.removeLast()
 
     #expect(path.description == "/usr/local")
   }
@@ -208,9 +187,7 @@ extension AllTests.ComponentViewTests {
   func removeAtIndex() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
-    var cv = path.components
-    cv.remove(at: cv.idx(1)) // remove "local"
-    path.components = cv
+    path.components.remove(at: path.components.idx(1))
 
     #expect(path.description == "/usr/bin")
   }
@@ -233,9 +210,7 @@ extension AllTests.ComponentViewTests {
   func removeAllFromRelative() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c")
-    var cv = path.components
-    cv.removeAll()
-    path.components = cv
+    path.components.removeAll()
 
     #expect(path.description == "")
     #expect(path.isEmpty)
@@ -247,10 +222,9 @@ extension AllTests.ComponentViewTests {
   func replaceMiddle() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
-    var cv = path.components
-    let replacement: [FilePath.Component] = ["share", "man"]
-    cv.replaceSubrange(cv.range(1..<2), with: replacement) // replace "local"
-    path.components = cv
+    path.components.replaceSubrange(
+      path.components.range(1..<2),
+      with: ["share", "man"] as [FilePath.Component])
 
     #expect(path.description == "/usr/share/man/bin")
   }
@@ -259,10 +233,9 @@ extension AllTests.ComponentViewTests {
   func replaceAll() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/old/path")
-    var cv = path.components
-    let newComps: [FilePath.Component] = ["new", "path"]
-    cv.replaceSubrange(cv.startIndex..<cv.endIndex, with: newComps)
-    path.components = cv
+    path.components.replaceSubrange(
+      path.components.startIndex..<path.components.endIndex,
+      with: ["new", "path"] as [FilePath.Component])
 
     #expect(path.description == "/new/path")
     #expect(path.anchor?.description == "/")
@@ -272,9 +245,8 @@ extension AllTests.ComponentViewTests {
   func replaceWithEmpty() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
-    var cv = path.components
-    cv.replaceSubrange(cv.range(1..<3), with: []) // remove "local" and "bin"
-    path.components = cv
+    path.components.replaceSubrange(
+      path.components.range(1..<3), with: [] as [FilePath.Component])
 
     #expect(path.description == "/usr")
   }
@@ -283,10 +255,9 @@ extension AllTests.ComponentViewTests {
   func replaceEmptyRange() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/bin")
-    var cv = path.components
-    let insertion: [FilePath.Component] = ["local"]
-    cv.replaceSubrange(cv.range(1..<1), with: insertion) // insert before "bin"
-    path.components = cv
+    path.components.replaceSubrange(
+      path.components.range(1..<1),
+      with: ["local"] as [FilePath.Component])
 
     #expect(path.description == "/usr/local/bin")
   }
@@ -359,9 +330,7 @@ extension AllTests.ComponentViewTests {
   func windowsAppend() {
     FilePath.REVIEW_ONLY_platform = .windows
     var path = FilePath(#"C:\Users"#)
-    var cv = path.components
-    cv.append("Admin")
-    path.components = cv
+    path.components.append("Admin")
 
     #expect(path.description == #"C:\Users\Admin"#)
     #expect(path.anchor?.description == #"C:\"#)
@@ -384,9 +353,7 @@ extension AllTests.ComponentViewTests {
   func windowsRemoveComponent() {
     FilePath.REVIEW_ONLY_platform = .windows
     var path = FilePath(#"C:\Users\Admin\file.txt"#)
-    var cv = path.components
-    cv.removeLast()
-    path.components = cv
+    path.components.removeLast()
 
     #expect(path.description == #"C:\Users\Admin"#)
   }
@@ -395,9 +362,7 @@ extension AllTests.ComponentViewTests {
   func windowsUNCAppend() {
     FilePath.REVIEW_ONLY_platform = .windows
     var path = FilePath(#"\\server\share"#)
-    var cv = path.components
-    cv.append("folder")
-    path.components = cv
+    path.components.append("folder")
 
     #expect(path.description == #"\\server\share\folder"#)
   }
@@ -406,10 +371,9 @@ extension AllTests.ComponentViewTests {
   func windowsReplaceComponents() {
     FilePath.REVIEW_ONLY_platform = .windows
     var path = FilePath(#"C:\old\stuff"#)
-    var cv = path.components
-    let newComps: [FilePath.Component] = ["new", "things"]
-    cv.replaceSubrange(cv.startIndex..<cv.endIndex, with: newComps)
-    path.components = cv
+    path.components.replaceSubrange(
+      path.components.startIndex..<path.components.endIndex,
+      with: ["new", "things"] as [FilePath.Component])
 
     #expect(path.description == #"C:\new\things"#)
   }
@@ -514,10 +478,9 @@ extension AllTests.ComponentViewTests {
   func prefix() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin/tool")
-    var cv = path.components
-    let first2 = Array(cv.prefix(2))
-    cv.replaceSubrange(cv.startIndex..<cv.endIndex, with: first2)
-    path.components = cv
+    let first2 = Array(path.components.prefix(2))
+    path.components.replaceSubrange(
+      path.components.startIndex..<path.components.endIndex, with: first2)
 
     #expect(path.description == "/usr/local")
   }
@@ -526,10 +489,9 @@ extension AllTests.ComponentViewTests {
   func dropFirst() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
-    var cv = path.components
-    let tail = Array(cv.dropFirst())
-    cv.replaceSubrange(cv.startIndex..<cv.endIndex, with: tail)
-    path.components = cv
+    let tail = Array(path.components.dropFirst())
+    path.components.replaceSubrange(
+      path.components.startIndex..<path.components.endIndex, with: tail)
 
     #expect(path.description == "/local/bin")
   }
@@ -583,9 +545,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.components.count == 1)
     #expect(path.components.first?.description == "hello")
 
-    var cv = path.components
-    cv.removeLast()
-    path.components = cv
+    path.components.removeLast()
     #expect(path.isEmpty)
   }
 
@@ -593,12 +553,10 @@ extension AllTests.ComponentViewTests {
   func multipleAppends() {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/")
-    var cv = path.components
 
     for name: String in ["a", "b", "c", "d", "e"] {
-      cv.append(FilePath.Component(name)!)
+      path.components.append(FilePath.Component(name)!)
     }
-    path.components = cv
 
     #expect(path.components.count == 5)
     #expect(path.description == "/a/b/c/d/e")
@@ -611,12 +569,11 @@ extension AllTests.ComponentViewTests {
       var path = FilePath("/old/path/here")
       let anchor = path.anchor
 
-      var cv = path.components
-      cv.replaceSubrange(cv.startIndex..<cv.endIndex, with: [
-        "completely" as FilePath.Component,
-        "new" as FilePath.Component,
-      ])
-      path.components = cv
+      path.components.replaceSubrange(
+        path.components.startIndex..<path.components.endIndex, with: [
+          "completely" as FilePath.Component,
+          "new" as FilePath.Component,
+        ])
 
       #expect(path.anchor == anchor)
       #expect(path.components.map(\.description) == ["completely", "new"])
@@ -633,9 +590,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b/c/")
     #expect(path.hasTrailingSeparator)
 
-    var cv = path.components
-    cv.removeLast()
-    path.components = cv
+    path.components.removeLast()
 
     #expect(!path.hasTrailingSeparator)
     #expect(path.description == "a/b")
@@ -647,11 +602,9 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b/c/")
     #expect(path.hasTrailingSeparator)
 
-    var cv = path.components
-    cv.replaceSubrange(
-      cv.index(before: cv.endIndex) ..< cv.endIndex,
+    path.components.replaceSubrange(
+      path.components.index(before: path.components.endIndex) ..< path.components.endIndex,
       with: ["d" as FilePath.Component])
-    path.components = cv
 
     #expect(!path.hasTrailingSeparator)
     #expect(path.description == "a/b/d")
@@ -663,9 +616,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b/c/")
     #expect(path.hasTrailingSeparator)
 
-    var cv = path.components
-    cv.removeAll()
-    path.components = cv
+    path.components.removeAll()
 
     #expect(!path.hasTrailingSeparator)
     #expect(path.description == "")
@@ -677,9 +628,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/a/b/c/")
     #expect(path.hasTrailingSeparator)
 
-    var cv = path.components
-    cv.removeAll()
-    path.components = cv
+    path.components.removeAll()
 
     #expect(!path.hasTrailingSeparator)
     #expect(path.description == "/")
@@ -691,9 +640,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath(#"C:\Users\Admin\"#)
     #expect(path.hasTrailingSeparator)
 
-    var cv = path.components
-    cv.removeLast()
-    path.components = cv
+    path.components.removeLast()
 
     #expect(!path.hasTrailingSeparator)
     #expect(path.description == #"C:\Users"#)
@@ -707,9 +654,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b/c/")
     #expect(path.hasTrailingSeparator)
 
-    var cv = path.components
-    cv.insert("z", at: cv.idx(0))
-    path.components = cv
+    path.components.insert("z", at: path.components.idx(0))
 
     #expect(path.hasTrailingSeparator)
     #expect(path.description == "z/a/b/c/")
@@ -720,9 +665,9 @@ extension AllTests.ComponentViewTests {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c/")
 
-    var cv = path.components
-    cv.replaceSubrange(cv.range(0..<1), with: ["x" as FilePath.Component])
-    path.components = cv
+    path.components.replaceSubrange(
+      path.components.range(0..<1),
+      with: ["x" as FilePath.Component])
 
     #expect(path.hasTrailingSeparator)
     #expect(path.description == "x/b/c/")
@@ -733,9 +678,7 @@ extension AllTests.ComponentViewTests {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c/")
 
-    var cv = path.components
-    cv.removeFirst()
-    path.components = cv
+    path.components.removeFirst()
 
     #expect(path.hasTrailingSeparator)
     #expect(path.description == "b/c/")
@@ -746,9 +689,7 @@ extension AllTests.ComponentViewTests {
     FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/a/c/")
 
-    var cv = path.components
-    cv.insert("b", at: cv.idx(1))
-    path.components = cv
+    path.components.insert("b", at: path.components.idx(1))
 
     #expect(path.hasTrailingSeparator)
     #expect(path.description == "/a/b/c/")
@@ -788,9 +729,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b/")
     #expect(path.hasTrailingSeparator)
 
-    var cv = path.components
-    cv.append("c")
-    path.components = cv
+    path.components.append("c")
 
     #expect(!path.hasTrailingSeparator)
     #expect(path.description == "a/b/c")
@@ -802,9 +741,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/dir/")
     #expect(path.hasTrailingSeparator)
 
-    var cv = path.components
-    cv.append(contentsOf: ["sub", "file"] as [FilePath.Component])
-    path.components = cv
+    path.components.append(contentsOf: ["sub", "file"] as [FilePath.Component])
 
     #expect(!path.hasTrailingSeparator)
     #expect(path.description == "/dir/sub/file")
@@ -819,9 +756,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.isResourceFork)
     #expect(path.components.map(\.description) == ["dir", "file"])
 
-    var cv = path.components
-    cv.removeLast()
-    path.components = cv
+    path.components.removeLast()
 
     #expect(!path.isResourceFork)
     #expect(path.description == "/dir")
@@ -834,9 +769,9 @@ extension AllTests.ComponentViewTests {
     #expect(path.isResourceFork)
     #expect(path.components.map(\.description) == ["file"])
 
-    var cv = path.components
-    cv.replaceSubrange(cv.range(0..<1), with: ["other" as FilePath.Component])
-    path.components = cv
+    path.components.replaceSubrange(
+      path.components.range(0..<1),
+      with: ["other" as FilePath.Component])
 
     #expect(!path.isResourceFork)
     #expect(path.description == "/other")
@@ -848,9 +783,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/file/..namedfork/rsrc")
     #expect(path.isResourceFork)
 
-    var cv = path.components
-    cv.removeAll()
-    path.components = cv
+    path.components.removeAll()
 
     #expect(!path.isResourceFork)
     #expect(path.description == "/")
@@ -865,9 +798,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.isResourceFork)
     #expect(path.components.map(\.description) == ["file"])
 
-    var cv = path.components
-    cv.insert("dir", at: cv.idx(0))
-    path.components = cv
+    path.components.insert("dir", at: path.components.idx(0))
 
     #expect(path.isResourceFork)
     #expect(path.components.map(\.description) == ["dir", "file"])
@@ -893,9 +824,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/file/..namedfork/rsrc")
     #expect(path.isResourceFork)
 
-    var cv = path.components
-    cv.append("extra")
-    path.components = cv
+    path.components.append("extra")
 
     #expect(!path.isResourceFork)
     #expect(path.description == "/file/extra")
