@@ -12,32 +12,24 @@
 internal struct _ParsedWindowsRoot {
   var rootEnd: SystemString.Index
   var relativeBegin: SystemString.Index
-  var drive: SystemChar?
-  var fullyQualified: Bool
-  var deviceSigil: SystemChar?
-  var host: Range<SystemString.Index>?
-  var volume: Range<SystemString.Index>?
+  var drive: FilePath.CodeUnit?
+  var deviceSigil: FilePath.CodeUnit?
 }
 
 extension _ParsedWindowsRoot {
   static func traditional(
-    drive: SystemChar?, fullQualified: Bool,
+    drive: FilePath.CodeUnit?,
     endingAt idx: SystemString.Index
   ) -> _ParsedWindowsRoot {
     _ParsedWindowsRoot(
       rootEnd: idx,
       relativeBegin: idx,
       drive: drive,
-      fullyQualified: fullQualified,
-      deviceSigil: nil,
-      host: nil,
-      volume: nil)
+      deviceSigil: nil)
   }
 
   static func unc(
-    deviceSigil: SystemChar?,
-    server: Range<SystemString.Index>,
-    share: Range<SystemString.Index>,
+    deviceSigil: FilePath.CodeUnit?,
     endingAt end: SystemString.Index,
     relativeBegin relBegin: SystemString.Index
   ) -> _ParsedWindowsRoot {
@@ -45,16 +37,12 @@ extension _ParsedWindowsRoot {
       rootEnd: end,
       relativeBegin: relBegin,
       drive: nil,
-      fullyQualified: true,
-      deviceSigil: deviceSigil,
-      host: server,
-      volume: share)
+      deviceSigil: deviceSigil)
   }
 
   static func device(
-    deviceSigil: SystemChar,
-    volume: Range<SystemString.Index>,
-    drive: SystemChar?,
+    deviceSigil: FilePath.CodeUnit,
+    drive: FilePath.CodeUnit?,
     endingAt end: SystemString.Index,
     relativeBegin relBegin: SystemString.Index
   ) -> _ParsedWindowsRoot {
@@ -62,14 +50,11 @@ extension _ParsedWindowsRoot {
       rootEnd: end,
       relativeBegin: relBegin,
       drive: drive,
-      fullyQualified: true,
-      deviceSigil: deviceSigil,
-      host: nil,
-      volume: volume)
+      deviceSigil: deviceSigil)
   }
 
   var isVerbatimComponent: Bool {
-    deviceSigil == .question
+    deviceSigil == ._question
   }
 }
 
@@ -82,29 +67,25 @@ struct _Lexer {
     self.slice = str[...]
   }
 
-  init(_ slice: Slice<SystemString>) {
-    self.slice = slice
-  }
-
-  var backslash: SystemChar { .backslash }
+  var backslash: FilePath.CodeUnit { ._backslash }
 
   mutating func eatBackslash() -> Bool {
-    slice._eat(.backslash) != nil
+    slice._eat(._backslash) != nil
   }
 
-  mutating func eatDrive() -> SystemChar? {
+  mutating func eatDrive() -> FilePath.CodeUnit? {
     let copy = slice
-    if let d = slice._eat(if: { $0.isLetter }),
-       slice._eat(.colon) != nil {
+    if let d = slice._eat(if: { $0._isLetter }),
+       slice._eat(._colon) != nil {
       return d
     }
     slice = copy
     return nil
   }
 
-  mutating func eatSigil() -> SystemChar? {
+  mutating func eatSigil() -> FilePath.CodeUnit? {
     let copy = slice
-    guard let sigil = slice._eat(.question) ?? slice._eat(.dot) else {
+    guard let sigil = slice._eat(._question) ?? slice._eat(._dot) else {
       return nil
     }
     guard isEmpty || slice.first == backslash else {
@@ -116,7 +97,7 @@ struct _Lexer {
 
   mutating func eatUNC() -> Bool {
     slice._eatSequence(
-      "UNC".unicodeScalars.lazy.map { SystemChar(ascii: $0) }
+      "UNC".unicodeScalars.lazy.map { FilePath.CodeUnit(_ascii: $0) }
     ) != nil
   }
 
@@ -154,10 +135,10 @@ extension SystemString {
     let i1 = index(after: i0)
     let i2 = index(after: i1)
     let i3 = index(after: i2)
-    guard self[i0] == .backslash,
-          self[i1] == .backslash,
-          self[i2] == .question,
-          self[i3] == .backslash
+    guard self[i0] == ._backslash,
+          self[i1] == ._backslash,
+          self[i2] == ._question,
+          self[i3] == ._backslash
     else { return nil }
     return index(after: i3)
   }
@@ -186,8 +167,10 @@ extension SystemString {
     }
 
     // \\?\UNC\server\share[\]
-    let uncChars: [SystemChar] = [
-      SystemChar(ascii: "U"), SystemChar(ascii: "N"), SystemChar(ascii: "C")
+    let uncChars: [FilePath.CodeUnit] = [
+      FilePath.CodeUnit(_ascii: "U"),
+      FilePath.CodeUnit(_ascii: "N"),
+      FilePath.CodeUnit(_ascii: "C")
     ]
     if self[afterPrefix...].starts(with: uncChars) {
       let afterUNC = index(afterPrefix, offsetBy: 3)
@@ -204,8 +187,8 @@ extension SystemString {
     if afterPrefix < endIndex {
       let afterFirst = index(after: afterPrefix)
       if afterFirst < endIndex
-         && self[afterPrefix].isLetter
-         && self[afterFirst] == .colon {
+         && self[afterPrefix]._isLetter
+         && self[afterFirst] == ._colon {
         let afterColon = index(after: afterFirst)
         return skipPastSep(from: afterColon)
       }
@@ -226,39 +209,36 @@ extension SystemString {
     var lexer = _Lexer(self)
 
     func parseUNC(
-      deviceSigil: SystemChar?
+      deviceSigil: FilePath.CodeUnit?
     ) -> _ParsedWindowsRoot {
-      let serverRange = lexer.eatComponent()
+      _ = lexer.eatComponent()
       guard lexer.eatBackslash() else {
         let end = lexer.current
         return .unc(
           deviceSigil: deviceSigil,
-          server: serverRange,
-          share: end..<end,
           endingAt: end,
           relativeBegin: end)
       }
-      let shareRange = lexer.eatComponent()
+      _ = lexer.eatComponent()
       let rootEnd = lexer.current
       _ = lexer.eatBackslash()
       return .unc(
         deviceSigil: deviceSigil,
-        server: serverRange, share: shareRange,
         endingAt: rootEnd, relativeBegin: lexer.current)
     }
 
     // `C:` or `C:\`
     if let d = lexer.eatDrive() {
-      let fullyQualified = lexer.eatBackslash()
+      _ = lexer.eatBackslash()
       return .traditional(
-        drive: d, fullQualified: fullyQualified,
+        drive: d,
         endingAt: lexer.current)
     }
 
     guard lexer.eatBackslash() else { return nil }
     guard lexer.eatBackslash() else {
       return .traditional(
-        drive: nil, fullQualified: false,
+        drive: nil,
         endingAt: lexer.current)
     }
 
@@ -269,7 +249,6 @@ extension SystemString {
     guard lexer.eatBackslash() else {
       return .device(
         deviceSigil: sigil,
-        volume: lexer.current..<lexer.current,
         drive: nil,
         endingAt: lexer.current,
         relativeBegin: lexer.current)
@@ -277,12 +256,11 @@ extension SystemString {
 
     // UNC sub-form only applies to verbatim paths (\\?\UNC\...).
     // For device-namespace (\\.\), UNC is just a device name.
-    if sigil == .question, lexer.eatUNC() {
+    if sigil == ._question, lexer.eatUNC() {
       guard lexer.eatBackslash() else {
         let end = lexer.current
         return .device(
           deviceSigil: sigil,
-          volume: end..<end,
           drive: nil,
           endingAt: end,
           relativeBegin: end)
@@ -291,17 +269,16 @@ extension SystemString {
     }
 
     // Check for device drive: \\.\C:\ or \\?\C:\
-    let deviceStart = lexer.current
     let deviceRange = lexer.eatComponent()
     let rootEnd = lexer.current
 
     // Check if device is a drive letter (e.g., C: or C:\)
-    var drive: SystemChar? = nil
+    var drive: FilePath.CodeUnit? = nil
     let deviceSlice = self[deviceRange]
     if deviceSlice.count >= 2 {
       let first = deviceSlice[deviceSlice.startIndex]
       let second = deviceSlice[deviceSlice.index(after: deviceSlice.startIndex)]
-      if first.isLetter && second == .colon {
+      if first._isLetter && second == ._colon {
         if deviceSlice.count == 2 {
           drive = first
           // Check for trailing backslash after C:
@@ -310,7 +287,6 @@ extension SystemString {
             let newEnd = lexer.current
             return .device(
               deviceSigil: sigil,
-              volume: deviceRange,
               drive: drive,
               endingAt: newEnd,
               relativeBegin: newEnd)
@@ -322,7 +298,7 @@ extension SystemString {
     _ = lexer.eatBackslash()
 
     return .device(
-      deviceSigil: sigil, volume: deviceRange,
+      deviceSigil: sigil,
       drive: drive,
       endingAt: rootEnd, relativeBegin: lexer.current)
   }
@@ -352,7 +328,7 @@ extension SystemString {
 
     // Three or more leading backslashes: NOT a UNC/device path.
     // Return after the first backslash; coalescing handles the rest.
-    if !lexer.isEmpty && lexer.slice.first == .backslash {
+    if !lexer.isEmpty && lexer.slice.first == ._backslash {
       return self.index(after: self.startIndex)
     }
 
@@ -360,7 +336,7 @@ extension SystemString {
       if lexer.eatBackslash() { return }
       let idx = lexer.current
       lexer.clear()
-      self.insert(.backslash, at: idx)
+      self.insert(._backslash, at: idx)
       lexer.reset(to: self, at: idx)
       let p = lexer.eatBackslash()
       _internalInvariant(p)
@@ -373,20 +349,19 @@ extension SystemString {
     if let sigil = lexer.eatSigil() {
       expectBackslash()
       // UNC sub-form only for verbatim (\\?\UNC\...), not device (\\.\UNC\...)
-      if sigil == .question, lexer.eatUNC() {
+      if sigil == ._question, lexer.eatUNC() {
         expectBackslash()
         expectComponent()
         expectComponent()
         return lexer.current
       }
       // Check for drive letter device: \\.\C:\ or \\?\C:\
-      let deviceStart = lexer.current
       let deviceRange = lexer.eatComponent()
       let deviceSlice = self[deviceRange]
       if deviceSlice.count == 2 {
         let first = deviceSlice[deviceSlice.startIndex]
         let second = deviceSlice[deviceSlice.index(after: deviceSlice.startIndex)]
-        if first.isLetter && second == .colon {
+        if first._isLetter && second == ._colon {
           // Device drive letter - eat the trailing backslash if present
           if lexer.eatBackslash() {
             return lexer.current

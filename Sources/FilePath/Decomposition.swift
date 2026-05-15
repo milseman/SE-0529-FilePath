@@ -28,7 +28,7 @@ extension FilePath {
         let hasRelativeContent = relBegin < _storage.endIndex
         if hasRelativeContent,
            let last = newBytes.last,
-           !isSeparator(last) && last != .colon {
+           !isSeparator(last) && last != ._colon {
           newBytes.append(platformSeparator)
         }
         _storage.replaceSubrange(_storage.startIndex..<relBegin, with: newBytes)
@@ -222,7 +222,7 @@ extension FilePath {
           // - If anchor ends with `:` (Windows drive-relative): no sep
           // - Otherwise: add separator
           if let last = anchor._slice.last {
-            if !isSeparator(last) && last != .colon {
+            if !isSeparator(last) && last != ._colon {
               str.append(platformSeparator)
             }
           }

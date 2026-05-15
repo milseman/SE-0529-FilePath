@@ -8,13 +8,13 @@
 */
 
 // The separator we use for slash-based platforms
-private var genericSeparator: SystemChar { .slash }
+private var genericSeparator: FilePath.CodeUnit { ._slash }
 
-internal var platformSeparator: SystemChar {
-  _isWindows ? .backslash : genericSeparator
+internal var platformSeparator: FilePath.CodeUnit {
+  _isWindows ? ._backslash : genericSeparator
 }
 
-internal func isSeparator(_ c: SystemChar) -> Bool {
+internal func isSeparator(_ c: FilePath.CodeUnit) -> Bool {
   c == platformSeparator
 }
 
@@ -70,7 +70,7 @@ extension SystemString {
         // //?/ normalizes to \\?\ after conversion, but it's
         // device-namespace, not verbatim. Demote ? → . sigil.
         if _startsWithVerbatimPrefix() != nil {
-          self[index(startIndex, offsetBy: 2)] = .dot
+          self[index(startIndex, offsetBy: 2)] = ._dot
         }
       }
       readIdx = _prenormalizeWindowsRoots()
@@ -124,7 +124,7 @@ extension SystemString {
     let effectivelyRooted = isRooted
 
     // Split into components
-    var components: [[SystemChar]] = []
+    var components: [[FilePath.CodeUnit]] = []
     var trailingSep = false
     var idx = relStart
     while idx < endIndex {
@@ -143,8 +143,8 @@ extension SystemString {
       components.append(Array(self[compStart..<idx]))
     }
 
-    let dotComp: [SystemChar] = [.dot]
-    var normalized: [[SystemChar]] = []
+    let dotComp: [FilePath.CodeUnit] = [._dot]
+    var normalized: [[FilePath.CodeUnit]] = []
     var hadTrailingDot = false
 
     for (i, comp) in components.enumerated() {
@@ -166,7 +166,7 @@ extension SystemString {
     }
 
     // Rebuild
-    var result: [SystemChar] = []
+    var result: [FilePath.CodeUnit] = []
     if hasRoot {
       result.append(contentsOf: self[startIndex..<relStart])
     }

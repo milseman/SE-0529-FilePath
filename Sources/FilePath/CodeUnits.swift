@@ -38,14 +38,12 @@ extension FilePath {
   public func withCString<Result, E: Error>(
     _ body: (UnsafePointer<FilePath.CodeUnit>) throws(E) -> Result
   ) throws(E) -> Result {
+    // Storage is already [FilePath.CodeUnit] with a trailing null, so
+    // we can just hand out its base address.
     let storage = _storage.nullTerminatedStorage
-    let count = storage.count
-    let buf = UnsafeMutablePointer<CodeUnit>.allocate(capacity: count)
-    defer { unsafe buf.deallocate() }
-    for i in 0..<count {
-      unsafe buf[i] = storage[i].rawValue
+    return try unsafe storage.withUnsafeBufferPointer { buf throws(E) in
+      try unsafe body(buf.baseAddress!)
     }
-    return try unsafe body(UnsafePointer(buf))
   }
 }
 
@@ -64,13 +62,7 @@ extension FilePath {
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<CodeUnit>) throws -> T
   ) rethrows -> T {
-    try unsafe _storage.withCodeUnits { codeUnits in
-      try unsafe codeUnits.baseAddress!.withMemoryRebound(
-        to: CodeUnit.self, capacity: codeUnits.count
-      ) {
-        try unsafe body(UnsafeBufferPointer(start: $0, count: codeUnits.count))
-      }
-    }
+    try unsafe _storage.withCodeUnits(body)
   }
 
   /// Creates a file path from a buffer of platform code units.
@@ -79,11 +71,10 @@ extension FilePath {
   /// if the buffer contains `NUL`, which is not a valid path byte
   /// on any supported platform.
   public init?(codeUnits: UnsafeBufferPointer<CodeUnit>) {
-    let chars = unsafe Array(codeUnits).map { SystemChar(rawValue: $0) }
-    guard !chars.contains(.null) else { return nil }
-    var nullTerminated = chars
-    nullTerminated.append(.null)
-    let str = SystemString(nullTerminated: nullTerminated)
+    var chars = unsafe Array(codeUnits)
+    guard !chars.contains(._null) else { return nil }
+    chars.append(._null)
+    let str = SystemString(nullTerminated: chars)
     self.init(normalizing: str)
   }
 
@@ -115,8 +106,8 @@ extension FilePath.Component {
   /// otherwise invalid (e.g. contain more than one component).
   public init?(codeUnits: UnsafeBufferPointer<FilePath.CodeUnit>) {
     guard codeUnits.count > 0 else { return nil }
-    let chars = unsafe Array(codeUnits).map { SystemChar(rawValue: $0) }
-    guard !chars.contains(.null) else { return nil }
+    let chars = unsafe Array(codeUnits)
+    guard !chars.contains(._null) else { return nil }
     let str = SystemString(chars)
     let path = FilePath(normalizing: str)
     guard path.anchor == nil else { return nil }
@@ -159,13 +150,11 @@ extension FilePath.ComponentView {
     if count == 0 {
       return try unsafe body(UnsafeBufferPointer(start: nil, count: 0))
     }
-    return try unsafe _path._storage.withNullTerminatedSystemChars { fullBuf in
+    return try unsafe _path._storage.withNullTerminatedCodeUnits { fullBuf in
       let startOffset = _path._storage.distance(
         from: _path._storage.startIndex, to: _start)
-      return try unsafe fullBuf.baseAddress!.advanced(by: startOffset)
-        .withMemoryRebound(to: FilePath.CodeUnit.self, capacity: count) {
-          try unsafe body(UnsafeBufferPointer(start: $0, count: count))
-        }
+      let p = unsafe fullBuf.baseAddress!.advanced(by: startOffset)
+      return try unsafe body(UnsafeBufferPointer(start: p, count: count))
     }
   }
 }

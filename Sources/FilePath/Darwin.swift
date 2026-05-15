@@ -16,8 +16,6 @@
 internal struct _ParsedDarwinAnchor {
   var anchorEnd: SystemString.Index
   var relativeBegin: SystemString.Index
-  var isResolveFlag: Bool
-  var isVolume: Bool
 }
 
 extension SystemString {
@@ -26,13 +24,13 @@ extension SystemString {
   internal func _parseDarwinAnchor() -> _ParsedDarwinAnchor? {
     _internalInvariant(_isDarwin)
     guard !isEmpty else { return nil }
-    guard self.first == .slash else { return nil }
+    guard self.first == ._slash else { return nil }
 
     let afterSlash = index(after: startIndex)
     guard afterSlash < endIndex else { return nil }
 
     // Must start with /.
-    guard self[afterSlash] == .dot else { return nil }
+    guard self[afterSlash] == ._dot else { return nil }
 
     // Check for /.nofollow/
     if _matchesNofollow(from: afterSlash) {
@@ -55,8 +53,8 @@ extension SystemString {
   // MARK: - /.nofollow/
 
   private func _matchesNofollow(from dotIdx: Index) -> Bool {
-    let nofollow: [SystemChar] = ".nofollow".unicodeScalars.map {
-      SystemChar(ascii: $0)
+    let nofollow: [FilePath.CodeUnit] = ".nofollow".unicodeScalars.map {
+      FilePath.CodeUnit(_ascii: $0)
     }
     let slice = self[dotIdx...]
     return slice.starts(with: nofollow)
@@ -66,21 +64,19 @@ extension SystemString {
     let nofollowLen = ".nofollow".count // 9
     let nofollowEnd = index(dotIdx, offsetBy: nofollowLen)
     guard nofollowEnd < endIndex else { return nil }
-    guard self[nofollowEnd] == .slash else { return nil }
+    guard self[nofollowEnd] == ._slash else { return nil }
 
     let afterSlash = index(after: nofollowEnd)
     return _ParsedDarwinAnchor(
       anchorEnd: afterSlash,
-      relativeBegin: afterSlash,
-      isResolveFlag: true,
-      isVolume: false)
+      relativeBegin: afterSlash)
   }
 
   // MARK: - /.resolve/N/
 
   private func _matchesResolve(from dotIdx: Index) -> Bool {
-    let resolve: [SystemChar] = ".resolve".unicodeScalars.map {
-      SystemChar(ascii: $0)
+    let resolve: [FilePath.CodeUnit] = ".resolve".unicodeScalars.map {
+      FilePath.CodeUnit(_ascii: $0)
     }
     let slice = self[dotIdx...]
     return slice.starts(with: resolve)
@@ -90,14 +86,14 @@ extension SystemString {
     let resolveLen = ".resolve".count // 8
     let resolveEnd = index(dotIdx, offsetBy: resolveLen)
     guard resolveEnd < endIndex else { return nil }
-    guard self[resolveEnd] == .slash else { return nil }
+    guard self[resolveEnd] == ._slash else { return nil }
 
     // Read the flag value (everything between the two slashes)
     let flagStart = index(after: resolveEnd)
     guard flagStart < endIndex else { return nil }
 
     // Find the closing slash
-    guard let flagEnd = self[flagStart...].firstIndex(of: .slash) else {
+    guard let flagEnd = self[flagStart...].firstIndex(of: ._slash) else {
       return nil
     }
     guard flagStart < flagEnd else { return nil }
@@ -105,16 +101,14 @@ extension SystemString {
     let afterSlash = index(after: flagEnd)
     return _ParsedDarwinAnchor(
       anchorEnd: afterSlash,
-      relativeBegin: afterSlash,
-      isResolveFlag: true,
-      isVolume: false)
+      relativeBegin: afterSlash)
   }
 
   // MARK: - /.vol/FSID/FILEID
 
   private func _matchesVol(from dotIdx: Index) -> Bool {
-    let vol: [SystemChar] = ".vol".unicodeScalars.map {
-      SystemChar(ascii: $0)
+    let vol: [FilePath.CodeUnit] = ".vol".unicodeScalars.map {
+      FilePath.CodeUnit(_ascii: $0)
     }
     let slice = self[dotIdx...]
     return slice.starts(with: vol)
@@ -124,12 +118,12 @@ extension SystemString {
     let volLen = ".vol".count // 4
     let volEnd = index(dotIdx, offsetBy: volLen)
     guard volEnd < endIndex else { return nil }
-    guard self[volEnd] == .slash else { return nil }
+    guard self[volEnd] == ._slash else { return nil }
 
     // Read FSID
     let fsidStart = index(after: volEnd)
     guard fsidStart < endIndex else { return nil }
-    guard let fsidEnd = self[fsidStart...].firstIndex(of: .slash) else {
+    guard let fsidEnd = self[fsidStart...].firstIndex(of: ._slash) else {
       return nil
     }
     guard fsidStart < fsidEnd else { return nil }
@@ -139,12 +133,12 @@ extension SystemString {
     guard fileidStart < endIndex else { return nil }
 
     // FILEID goes up to next slash or end
-    let fileidEnd = self[fileidStart...].firstIndex(of: .slash) ?? endIndex
+    let fileidEnd = self[fileidStart...].firstIndex(of: ._slash) ?? endIndex
     guard fileidStart < fileidEnd else { return nil }
 
     // anchorEnd is at fileidEnd (the anchor is /.vol/FSID/FILEID without trailing /)
     let relBegin: SystemString.Index
-    if fileidEnd < endIndex && self[fileidEnd] == .slash {
+    if fileidEnd < endIndex && self[fileidEnd] == ._slash {
       relBegin = index(after: fileidEnd)
     } else {
       relBegin = fileidEnd
@@ -152,9 +146,7 @@ extension SystemString {
 
     return _ParsedDarwinAnchor(
       anchorEnd: fileidEnd,
-      relativeBegin: relBegin,
-      isResolveFlag: false,
-      isVolume: true)
+      relativeBegin: relBegin)
   }
 }
 
@@ -167,12 +159,12 @@ extension SystemString {
     guard _isDarwin else { return }
 
     // Check for /.resolve/1/ -> /.nofollow/
-    let resolveOnePrefix: [SystemChar] = "/.resolve/1/".unicodeScalars.map {
-      SystemChar(ascii: $0)
+    let resolveOnePrefix: [FilePath.CodeUnit] = "/.resolve/1/".unicodeScalars.map {
+      FilePath.CodeUnit(_ascii: $0)
     }
     if self.starts(with: resolveOnePrefix) {
-      let nofollowPrefix: [SystemChar] = "/.nofollow/".unicodeScalars.map {
-        SystemChar(ascii: $0)
+      let nofollowPrefix: [FilePath.CodeUnit] = "/.nofollow/".unicodeScalars.map {
+        FilePath.CodeUnit(_ascii: $0)
       }
       let resolveEnd = self.index(startIndex, offsetBy: resolveOnePrefix.count)
       self.replaceSubrange(startIndex..<resolveEnd, with: nofollowPrefix)
@@ -180,14 +172,14 @@ extension SystemString {
     }
 
     // Check for /.vol/NNNN/2 -> /.vol/NNNN/@
-    let volPrefix: [SystemChar] = "/.vol/".unicodeScalars.map {
-      SystemChar(ascii: $0)
+    let volPrefix: [FilePath.CodeUnit] = "/.vol/".unicodeScalars.map {
+      FilePath.CodeUnit(_ascii: $0)
     }
     guard self.starts(with: volPrefix) else { return }
 
     let fsidStart = self.index(startIndex, offsetBy: volPrefix.count)
     guard fsidStart < endIndex else { return }
-    guard let fsidEnd = self[fsidStart...].firstIndex(of: .slash) else {
+    guard let fsidEnd = self[fsidStart...].firstIndex(of: ._slash) else {
       return
     }
     guard fsidStart < fsidEnd else { return }
@@ -196,13 +188,13 @@ extension SystemString {
     guard fileidStart < endIndex else { return }
 
     // Find end of fileid
-    let fileidEnd = self[fileidStart...].firstIndex(of: .slash) ?? endIndex
+    let fileidEnd = self[fileidStart...].firstIndex(of: ._slash) ?? endIndex
 
     // Check if fileid is exactly "2"
     let fileidSlice = self[fileidStart..<fileidEnd]
-    let two: [SystemChar] = [SystemChar(ascii: "2")]
+    let two: [FilePath.CodeUnit] = [FilePath.CodeUnit(_ascii: "2")]
     if fileidSlice.elementsEqual(two) {
-      let atSign: [SystemChar] = [.at]
+      let atSign: [FilePath.CodeUnit] = [._at]
       self.replaceSubrange(fileidStart..<fileidEnd, with: atSign)
     }
   }
@@ -212,8 +204,8 @@ extension SystemString {
 
 extension SystemString {
   // The resource fork suffix is exactly "/..namedfork/rsrc" (17 bytes)
-  internal static let _resourceForkSuffix: [SystemChar] =
-    "/..namedfork/rsrc".unicodeScalars.map { SystemChar(ascii: $0) }
+  internal static let _resourceForkSuffix: [FilePath.CodeUnit] =
+    "/..namedfork/rsrc".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
 
   internal func _hasResourceForkSuffix() -> Bool {
     guard _isDarwin else { return false }

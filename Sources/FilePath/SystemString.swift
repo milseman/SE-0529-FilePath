@@ -7,59 +7,52 @@
  See https://swift.org/LICENSE.txt for license information
 */
 
-internal struct SystemChar:
-  RawRepresentable, Sendable, Comparable, Hashable {
-  internal typealias RawValue = FilePath.CodeUnit
+// MARK: - FilePath.CodeUnit helpers
+//
+// `FilePath.CodeUnit` is the storage element type used throughout this
+// implementation: `CChar` on Unix, `UInt16` on Windows. The underscored
+// extension members below are FilePath-internal helpers — they extend
+// the underlying `CChar` / `UInt16` type with names a reader can
+// recognise as path-byte constants.
 
-  internal var rawValue: RawValue
+extension FilePath.CodeUnit {
+  internal static var _null: Self { 0 }
+  internal static var _slash: Self { Self(_ascii: "/") }
+  internal static var _backslash: Self { Self(_ascii: #"\"#) }
+  internal static var _dot: Self { Self(_ascii: ".") }
+  internal static var _colon: Self { Self(_ascii: ":") }
+  internal static var _question: Self { Self(_ascii: "?") }
+  internal static var _at: Self { Self(_ascii: "@") }
 
-  internal init(rawValue: RawValue) { self.rawValue = rawValue }
-
-  internal init(_ rawValue: RawValue) { self.init(rawValue: rawValue) }
-
-  static func < (lhs: SystemChar, rhs: SystemChar) -> Bool {
-    lhs.rawValue < rhs.rawValue
-  }
-}
-
-extension SystemChar {
-  internal init(ascii: Unicode.Scalar) {
-    self.init(rawValue: numericCast(UInt8(ascii: ascii)))
-  }
-
-  internal static var null: SystemChar { SystemChar(0x0) }
-  internal static var slash: SystemChar { SystemChar(ascii: "/") }
-  internal static var backslash: SystemChar { SystemChar(ascii: #"\"#) }
-  internal static var dot: SystemChar { SystemChar(ascii: ".") }
-  internal static var colon: SystemChar { SystemChar(ascii: ":") }
-  internal static var question: SystemChar { SystemChar(ascii: "?") }
-  internal static var at: SystemChar { SystemChar(ascii: "@") }
-
-  internal var asciiScalar: Unicode.Scalar? {
-    guard isASCII else { return nil }
-    return Unicode.Scalar(UInt8(truncatingIfNeeded: rawValue))
+  internal init(_ascii s: Unicode.Scalar) {
+    self = numericCast(UInt8(ascii: s))
   }
 
-  internal var isASCII: Bool {
-    (0...0x7F).contains(rawValue)
+  internal var _isASCII: Bool {
+    (0...0x7F).contains(self)
   }
 
-  internal var isLetter: Bool {
-    guard isASCII else { return false }
-    let asciiRaw: UInt8 = numericCast(rawValue)
-    return (UInt8(ascii: "a") ... UInt8(ascii: "z")).contains(asciiRaw) ||
-           (UInt8(ascii: "A") ... UInt8(ascii: "Z")).contains(asciiRaw)
+  internal var _isLetter: Bool {
+    guard _isASCII else { return false }
+    let raw: UInt8 = numericCast(self)
+    return (UInt8(ascii: "a") ... UInt8(ascii: "z")).contains(raw) ||
+           (UInt8(ascii: "A") ... UInt8(ascii: "Z")).contains(raw)
+  }
+
+  internal var _asciiScalar: Unicode.Scalar? {
+    guard _isASCII else { return nil }
+    return Unicode.Scalar(UInt8(truncatingIfNeeded: self))
   }
 }
 
 internal struct SystemString: Sendable {
-  internal typealias Storage = [SystemChar]
+  internal typealias Storage = [FilePath.CodeUnit]
   internal var nullTerminatedStorage: Storage
 }
 
 extension SystemString {
   internal init() {
-    self.nullTerminatedStorage = [.null]
+    self.nullTerminatedStorage = [._null]
     _invariantCheck()
   }
 
@@ -74,10 +67,10 @@ extension SystemString {
     _invariantCheck()
   }
 
-  internal init<C: Collection>(_ chars: C) where C.Element == SystemChar {
+  internal init<C: Collection>(_ chars: C) where C.Element == FilePath.CodeUnit {
     var rawChars = Storage(chars)
-    if rawChars.last != .null {
-      rawChars.append(.null)
+    if rawChars.last != ._null {
+      rawChars.append(._null)
     }
     self.init(nullTerminated: rawChars)
   }
@@ -86,8 +79,8 @@ extension SystemString {
 extension SystemString {
   fileprivate func _invariantsSatisfied() -> Bool {
     guard !nullTerminatedStorage.isEmpty else { return false }
-    guard nullTerminatedStorage.last! == .null else { return false }
-    guard nullTerminatedStorage.firstIndex(of: .null) == length else {
+    guard nullTerminatedStorage.last! == ._null else { return false }
+    guard nullTerminatedStorage.firstIndex(of: ._null) == nullTerminatedStorage.count - 1 else {
       return false
     }
     return true
@@ -101,7 +94,7 @@ extension SystemString {
 }
 
 extension SystemString: RandomAccessCollection, MutableCollection {
-  internal typealias Element = SystemChar
+  internal typealias Element = FilePath.CodeUnit
   internal typealias Index = Storage.Index
   internal typealias Indices = Range<Index>
 
@@ -113,7 +106,7 @@ extension SystemString: RandomAccessCollection, MutableCollection {
     nullTerminatedStorage.index(before: nullTerminatedStorage.endIndex)
   }
 
-  internal subscript(position: Index) -> SystemChar {
+  internal subscript(position: Index) -> FilePath.CodeUnit {
     _read {
       precondition(position >= startIndex && position <= endIndex)
       yield nullTerminatedStorage[position]
@@ -128,7 +121,7 @@ extension SystemString: RandomAccessCollection, MutableCollection {
 extension SystemString: RangeReplaceableCollection {
   internal mutating func replaceSubrange<C: Collection>(
     _ subrange: Range<Index>, with newElements: C
-  ) where C.Element == SystemChar {
+  ) where C.Element == FilePath.CodeUnit {
     defer { _invariantCheck() }
     nullTerminatedStorage.replaceSubrange(subrange, with: newElements)
   }
@@ -162,22 +155,20 @@ extension SystemString: RangeReplaceableCollection {
 extension SystemString: Hashable {}
 
 extension SystemString {
-  internal func withNullTerminatedSystemChars<T>(
-    _ f: (UnsafeBufferPointer<SystemChar>) throws -> T
+  // Storage backing — includes the trailing null byte.
+  internal func withNullTerminatedCodeUnits<T>(
+    _ f: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
     try unsafe nullTerminatedStorage.withUnsafeBufferPointer(f)
   }
 
+  // Code units excluding the null terminator.
   internal func withCodeUnits<T>(
-    _ f: (UnsafeBufferPointer<FilePath._Encoding.CodeUnit>) throws -> T
+    _ f: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
-    try unsafe withNullTerminatedSystemChars {
-      try unsafe $0.withMemoryRebound(
-        to: FilePath._Encoding.CodeUnit.self
-      ) {
-        unsafe _internalInvariant($0.last == .zero)
-        return try unsafe f(.init(start: $0.baseAddress, count: $0.count&-1))
-      }
+    try unsafe withNullTerminatedCodeUnits {
+      unsafe _internalInvariant($0.last == ._null)
+      return try unsafe f(.init(start: $0.baseAddress, count: $0.count &- 1))
     }
   }
 }
@@ -189,10 +180,8 @@ extension Slice<SystemString> {
     try unsafe base.nullTerminatedStorage.withUnsafeBufferPointer { fullBuf in
       let count = self.count
       _internalInvariant(startIndex >= 0 && startIndex + count <= fullBuf.count)
-      return try unsafe fullBuf.baseAddress!.advanced(by: startIndex)
-        .withMemoryRebound(to: FilePath.CodeUnit.self, capacity: count) {
-          try unsafe f(UnsafeBufferPointer(start: $0, count: count))
-        }
+      let p = unsafe fullBuf.baseAddress.map { unsafe $0.advanced(by: startIndex) }
+      return try unsafe f(UnsafeBufferPointer(start: p, count: count))
     }
   }
 }
@@ -212,27 +201,24 @@ extension SystemString: ExpressibleByStringLiteral {
 
   internal init(_ string: String) {
     #if os(Windows)
-    var chars = string.utf16.map {
-      SystemChar(rawValue: FilePath.CodeUnit($0))
-    }
+    var chars = string.utf16.map { FilePath.CodeUnit($0) }
     #else
-    var chars = string.utf8.map {
-      SystemChar(rawValue: FilePath.CodeUnit(bitPattern: $0))
-    }
+    var chars = string.utf8.map { FilePath.CodeUnit(bitPattern: $0) }
     #endif
-    chars.append(.null)
+    chars.append(._null)
     self.init(nullTerminated: chars)
   }
 }
 
 extension SystemString: CustomStringConvertible, CustomDebugStringConvertible {
   internal var string: String {
-    unsafe self.withCodeUnits {
-      unsafe String(decoding: $0, as: FilePath._Encoding.self)
+    unsafe self.withCodeUnits { codeUnits in
+      unsafe codeUnits.withMemoryRebound(to: FilePath._Encoding.CodeUnit.self) {
+        unsafe String(decoding: $0, as: FilePath._Encoding.self)
+      }
     }
   }
 
   internal var description: String { string }
   internal var debugDescription: String { description.debugDescription }
 }
-

@@ -28,8 +28,10 @@ extension FilePath: Comparable {
 extension FilePath: CustomStringConvertible, CustomDebugStringConvertible {
   /// A textual representation of the file path.
   public var description: String {
-    unsafe _storage.withCodeUnits {
-      unsafe String(decoding: $0, as: FilePath._Encoding.self)
+    unsafe _storage.withCodeUnits { codeUnits in
+      unsafe codeUnits.withMemoryRebound(to: FilePath._Encoding.CodeUnit.self) {
+        unsafe String(decoding: $0, as: FilePath._Encoding.self)
+      }
     }
   }
 

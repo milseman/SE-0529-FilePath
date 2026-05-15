@@ -38,8 +38,8 @@ extension FilePath {
     public var kind: Kind {
       if _verbatimContext { return .regular }
       let s = _slice
-      if s.elementsEqual([.dot]) { return .currentDirectory }
-      if s.elementsEqual([.dot, .dot]) { return .parentDirectory }
+      if s.elementsEqual([._dot]) { return .currentDirectory }
+      if s.elementsEqual([._dot, ._dot]) { return .parentDirectory }
       return .regular
     }
   }

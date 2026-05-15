@@ -33,11 +33,6 @@ extension Slice where Element: Equatable {
     _eat(if: { $0 == e })
   }
 
-  internal mutating func _eat(asserting e: Element) {
-    let p = _eat(e)
-    _internalInvariant(p != nil)
-  }
-
   internal mutating func _eat(count c: Int) -> Slice {
     defer { self = self.dropFirst(c) }
     return self.prefix(c)
@@ -54,26 +49,6 @@ extension Slice where Element: Equatable {
     precondition(idx >= startIndex && idx <= endIndex)
     defer { self = self[idx...] }
     return self[..<idx]
-  }
-
-  internal mutating func _eatThrough(_ idx: Index) -> Slice {
-    precondition(idx >= startIndex && idx <= endIndex)
-    guard idx != endIndex else {
-      defer { self = self[endIndex ..< endIndex] }
-      return self
-    }
-    defer { self = self[index(after: idx)...] }
-    return self[...idx]
-  }
-
-  internal mutating func _eatUntil(_ e: Element) -> Slice? {
-    guard let idx = self.firstIndex(of: e) else { return nil }
-    return _eatUntil(idx)
-  }
-
-  internal mutating func _eatThrough(_ e: Element) -> Slice? {
-    guard let idx = self.firstIndex(of: e) else { return nil }
-    return _eatThrough(idx)
   }
 
   internal mutating func _eatWhile(

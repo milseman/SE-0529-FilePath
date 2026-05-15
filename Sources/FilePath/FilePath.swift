@@ -55,9 +55,9 @@ public struct FilePath: Sendable {
     let isRooted: Bool
     if hasRoot {
       let anchorLen = s.distance(from: s.startIndex, to: rootEnd)
-      if anchorLen == 1 && s[s.startIndex] == .backslash {
+      if anchorLen == 1 && s[s.startIndex] == ._backslash {
         isRooted = true
-      } else if anchorLen == 2 && s[s.index(after: s.startIndex)] == .colon {
+      } else if anchorLen == 2 && s[s.index(after: s.startIndex)] == ._colon {
         isRooted = false
       } else {
         isRooted = true
@@ -90,7 +90,7 @@ public struct FilePath: Sendable {
 
     // Strip leading separators from relative portion (they are
     // redundant duplicates of the gap/anchor separator)
-    while let first = relativeChars.first, first == .slash {
+    while let first = relativeChars.first, first == ._slash {
       relativeChars.removeFirst()
     }
 
@@ -112,8 +112,8 @@ public struct FilePath: Sendable {
     if !relative.isEmpty && gapSlice.isEmpty && hasAnchor {
       // Need separator between anchor and relative, but only if
       // the anchor doesn't already end with one
-      if let last = anchorSlice.last, last != .slash {
-        result.append(.slash)
+      if let last = anchorSlice.last, last != ._slash {
+        result.append(._slash)
       }
     }
     result.append(contentsOf: relative)

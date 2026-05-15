@@ -34,9 +34,9 @@ extension FilePath {
       // `C:` is NOT rooted (relative to CWD on that drive).
       let slice = _slice
       // `\` - rooted
-      if slice.count == 1 && slice.first == .backslash { return true }
+      if slice.count == 1 && slice.first == ._backslash { return true }
       // `C:` - not rooted
-      if slice.count == 2 && slice.last == .colon { return false }
+      if slice.count == 2 && slice.last == ._colon { return false }
       // Everything else (C:\, \\server\share, \\?\, etc.) is rooted
       return true
     }
@@ -47,7 +47,7 @@ extension FilePath {
 
       if let parsed = _parseWindowsAnchor() {
         if let d = parsed.drive {
-          return d.asciiScalar.map { Character($0) }
+          return d._asciiScalar.map { Character($0) }
         }
       }
       return nil
