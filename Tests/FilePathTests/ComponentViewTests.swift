@@ -870,6 +870,182 @@ extension AllTests.ComponentViewTests {
     #expect(path.description == #"\\server\share"#)
   }
 
+  // MARK: - removeAll across all anchor shapes
+  //
+  // The view region for removeAll extends from anchor-end (before any gap
+  // separator) to end-of-storage. These cases exercise the four anchor
+  // shapes: anchor-includes-trailing-sep, anchor-ends-with-`:`, anchor-
+  // with-gap-sep, and verbatim variants of the same.
+
+  @Test
+  func removeAllUNCWithComponentsDropsGapSep() {
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"\\server\share\foo\bar"#)
+    #expect(path.components.map(\.description) == ["foo", "bar"])
+    path.components.removeAll()
+    #expect(path.description == #"\\server\share"#)
+    #expect(!path.hasTrailingSeparator)
+  }
+
+  @Test
+  func removeAllDriveAbsoluteKeepsAnchorSep() {
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"C:\foo\bar"#)
+    path.components.removeAll()
+    #expect(path.description == #"C:\"#)
+  }
+
+  @Test
+  func removeAllDriveRelativeKeepsColon() {
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"C:foo\bar"#)
+    path.components.removeAll()
+    #expect(path.description == "C:")
+  }
+
+  @Test
+  func removeAllVerbatimDriveKeepsAnchor() {
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"\\?\C:\foo\bar"#)
+    path.components.removeAll()
+    #expect(path.description == #"\\?\C:\"#)
+  }
+
+  @Test
+  func removeAllVerbatimUNCDropsGapSep() {
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"\\?\UNC\server\share\foo"#)
+    path.components.removeAll()
+    #expect(path.description == #"\\?\UNC\server\share"#)
+  }
+
+  @Test
+  func removeAllVerbatimDeviceDropsGapSep() {
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"\\?\name\foo"#)
+    path.components.removeAll()
+    #expect(path.description == #"\\?\name"#)
+  }
+
+  // MARK: - Suffix interactions with splice
+
+  @Test
+  func appendAfterTrailingSepAbsorbs() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("/foo/")
+    #expect(path.hasTrailingSeparator)
+    path.components.append("bar")
+    #expect(path.description == "/foo/bar")
+    #expect(!path.hasTrailingSeparator)
+  }
+
+  @Test
+  func appendBeforeResourceForkPreserves() {
+    FilePath.REVIEW_ONLY_platform = .darwin
+    var path = FilePath("/foo/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+    path.components.append("bar")
+    #expect(path.description == "/foo/bar/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+    #expect(path.components.map(\.description) == ["foo", "bar"])
+  }
+
+  @Test
+  func removeLastWhenLastIsBeforeResourceFork() {
+    FilePath.REVIEW_ONLY_platform = .darwin
+    var path = FilePath("/foo/..namedfork/rsrc")
+    #expect(path.components.map(\.description) == ["foo"])
+    path.components.removeLast()
+    // Storage is now "/..namedfork/rsrc" — exactly the suffix pattern
+    #expect(path.description == "/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+    #expect(path.components.isEmpty)
+  }
+
+  @Test
+  func replaceSubrangeLastWithEmptyMatchesRemoveLast() {
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("/a/b/c")
+    let last = path.components.index(before: path.components.endIndex)
+    path.components.replaceSubrange(last..<path.components.endIndex, with: [])
+    #expect(path.description == "/a/b")
+  }
+
+  @Test
+  func insertIntoResourceForkInteriorPreservesSuffix() {
+    FilePath.REVIEW_ONLY_platform = .darwin
+    var path = FilePath("/foo/..namedfork/rsrc")
+    #expect(path.components.map(\.description) == ["foo"])
+    let afterFoo = path.components.index(after: path.components.startIndex)
+    path.components.insert("x", at: afterFoo)
+    #expect(path.description == "/foo/x/..namedfork/rsrc")
+    #expect(path.isResourceFork)
+    #expect(path.components.map(\.description) == ["foo", "x"])
+  }
+
+  // MARK: - Cross-anchor assignment (current behavior; pinned for refactor)
+  //
+  // These exercise wholesale-replacement paths. Today's defer restores the
+  // anchor only when it became nil; cases C/D below are NOT restored. The
+  // splice-back `_modify` redesign should change these to: cv's components
+  // get spliced into self's post-anchor region, anchor preserved.
+  // Assertions below match TODAY'S behavior — they'll need updating when
+  // the refactor lands, and that's the signal we got it right.
+
+  @Test
+  func assignDifferentAnchorCvCurrentlyReplacesAnchor() {
+    // Case C: cv from a path with a different anchor.
+    // Today: anchor changes (wholesale replacement).
+    // After refactor: anchor preserved, only components transferred.
+    FilePath.REVIEW_ONLY_platform = .windows
+    var path = FilePath(#"\foo"#)  // anchor "\"
+    let cv = FilePath(#"C:\bar"#).components  // cv anchor "C:\"
+    path.components = cv
+    // Pin current behavior:
+    #expect(path.description == #"C:\bar"#)
+    // After splice-back refactor, should be:
+    //   #expect(path.description == #"\bar"#)  // anchor preserved
+  }
+
+  @Test
+  func assignAnchoredCvOntoAnchorlessCurrentlyGainsAnchor() {
+    // Case D: cv has anchor, self doesn't.
+    // Today: anchor gained.
+    // After refactor: only cv's components transferred; self stays anchorless.
+    FilePath.REVIEW_ONLY_platform = .linux
+    var path = FilePath("a/b")  // no anchor
+    let cv = FilePath("/foo").components  // cv anchor "/"
+    path.components = cv
+    // Pin current behavior:
+    #expect(path.description == "/foo")
+    // After splice-back refactor, should be:
+    //   #expect(path.description == "foo")  // self stays anchorless
+  }
+
+  @Test
+  func absorptionThenAssignMatchesInPlace() {
+    // The case you asked about: cv mutated to absorb, then assigned back.
+    // The result should match in-place mutation.
+    FilePath.REVIEW_ONLY_platform = .darwin
+
+    // In-place reference behavior:
+    var inPlace = FilePath("/foo/bar")
+    inPlace.components.insert(".nofollow", at: inPlace.components.startIndex)
+    #expect(inPlace.description == "/.nofollow/foo/bar")
+
+    // Assignment form should produce the same result:
+    var assigned = FilePath("/foo/bar")
+    var cv = assigned.components
+    cv.insert(".nofollow", at: cv.startIndex)
+    assigned.components = cv
+
+    #expect(assigned.description == inPlace.description)
+    // Today this passes via wholesale replacement (cv._path == in-place result).
+    // After splice-back refactor, it must still pass — that's the constraint
+    // that forces the design to use cv's _originalAnchorEnd, not its
+    // current re-parsed anchor end.
+  }
+
   // -- Darwin anchor hazards --
 
   @Test
