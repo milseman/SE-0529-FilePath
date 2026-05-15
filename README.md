@@ -64,15 +64,17 @@ The full public surface described in the proposal:
 
 - **Degenerate Windows UNC paths**: Paths like `\\server` (no share), `\\` (bare double backslash), and `\\server\` (server but no share name) are commented out in the test data as "behavior TBD."
 
-- **Reparse hazards from component mutation**: Mutating `ComponentView` and writing it back goes through reconstruction without re-normalization. Certain mutations can produce a path that parses with a fundamentally different decomposition than the original:
+- **Reparse after component mutation (resolved — documented behavior)**: **The anchor of the result follows from whatever the path string is after mutation.** Mutating `ComponentView` and writing it back goes through reconstruction without re-normalization; the resulting path string is what the kernel will see, and we report whatever decomposition that string has. Concretely:
 
-  - **Darwin anchor absorption**: Inserting `.nofollow`, `.resolve`, or `.vol` as the first component of an absolute path causes re-decomposition to absorb components into the anchor. For example, `/foo/bar` → insert `.nofollow` at 0 → `/.nofollow/foo/bar` → anchor is now `/.nofollow/` instead of `/`, and `foo` is no longer the first component. Removing or replacing the first component can also expose a hidden anchor pattern (e.g., `/prefix/.nofollow/foo` → remove `prefix` → `/.nofollow/foo`).
+  - **Darwin anchor absorption**: Inserting `.nofollow`, `.resolve`, or `.vol` as the first component of an absolute path causes re-decomposition to absorb components into the anchor. For example, `/foo/bar` → insert `.nofollow` at 0 → `/.nofollow/foo/bar` → anchor becomes `/.nofollow/` and the components become `["foo", "bar"]`. Removing or replacing the first component can similarly expose a previously-hidden anchor pattern (e.g., `/prefix/.nofollow/foo` → remove `prefix` → anchor `/.nofollow/`, components `["foo"]`).
 
-  - **Darwin resource fork emergence**: Appending `rsrc` after a `..namedfork` component, or removing a component that was masking the `/..namedfork/rsrc` suffix pattern, causes a resource fork to appear (or disappear) unexpectedly.
+  - **Darwin resource fork emergence**: Appending `rsrc` after a `..namedfork` component (or removing a component that masked the `/..namedfork/rsrc` suffix pattern) causes the path to re-decompose with `isResourceFork == true` and the `..namedfork/rsrc` tail dropped from the components view.
 
-  - **Windows verbatim context**: Components inserted into `\\?\` paths should retain verbatim semantics (`.` and `..` are regular names), but the `_verbatimContext` flag on existing components may not propagate to newly inserted ones.
+  - **Windows verbatim context**: Components inserted into `\\?\` paths retain verbatim semantics on re-decomposition (`.` and `..` parse as regular component names).
 
-  Test cases for these hazards are in `ComponentViewTests` behind the `reparseHazardsEnabled` flag. These mutations don't crash — they produce valid paths — but the resulting decomposition may surprise callers. Options include: re-normalizing in the `components` setter, rejecting hazardous components, or documenting this as expected behavior.
+  Anchor preservation across mutation is selective: if a mutation causes the anchor to disappear entirely (e.g., default `removeAll()`, or assigning an anchorless `ComponentView`), the original anchor is restored. If a mutation causes the anchor to change to a different non-nil anchor (the absorption cases above), the new anchor stands. Callers wanting strict component-position preservation should construct via `init(anchor:_:hasTrailingSeparator:)` rather than mutating components.
+
+  Tests for all of these are in `ComponentViewTests` under "Re-decomposition after component mutation."
 
 ## Test results
 

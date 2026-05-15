@@ -830,9 +830,13 @@ extension AllTests.ComponentViewTests {
     #expect(path.description == "/file/extra")
   }
 
-  // MARK: - Reparse hazards (see README open questions)
-
-  static let reparseHazardsEnabled = false
+  // MARK: - Re-decomposition after component mutation
+  //
+  // When a component mutation produces a string that re-parses to a
+  // different decomposition (e.g. inserting `.nofollow` at the front
+  // of an absolute Darwin path causes anchor absorption), we honor
+  // the new decomposition rather than masking it. The string IS what
+  // the kernel sees; pretending otherwise would be a lie.
 
   // MARK: - Structural suffix rule corner cases
 
@@ -868,10 +872,12 @@ extension AllTests.ComponentViewTests {
 
   // -- Darwin anchor hazards --
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinInsertNofollowAtFront() {
-    // /foo/bar -> insert ".nofollow" at 0 -> /.nofollow/foo/bar
-    // On re-decomposition: anchor becomes "/.nofollow/" instead of "/"
+    // /foo/bar -> insert ".nofollow" at 0 -> /.nofollow/foo/bar.
+    // Darwin anchor parsing absorbs "/.nofollow/" into the anchor,
+    // so the post-mutation decomposition reflects the kernel's view
+    // rather than the caller's per-component intent.
     FilePath.REVIEW_ONLY_platform = .darwin
     var path = FilePath("/foo/bar")
     #expect(path.anchor?.description == "/")
@@ -880,21 +886,12 @@ extension AllTests.ComponentViewTests {
     cv.insert(".nofollow", at: cv.idx(0))
     path.components = cv
 
-    // After reconstruction the string is "/.nofollow/foo/bar"
     #expect(path.description == "/.nofollow/foo/bar")
-
-    // Reparse hazard: decomposition now sees a different anchor
-    let newAnchor = path.anchor?.description
-    let newComps = path.components.map(\.description)
-
-    // If this is "safe", anchor should still be "/" and components
-    // should be [".nofollow", "foo", "bar"]. But Darwin anchor
-    // parsing absorbs "/.nofollow/" into the anchor:
-    #expect(newAnchor == "/.nofollow/")
-    #expect(newComps == ["foo", "bar"])
+    #expect(path.anchor?.description == "/.nofollow/")
+    #expect(path.components.map(\.description) == ["foo", "bar"])
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinInsertResolveAtFront() {
     // /usr/bin -> insert ".resolve" at 0
     // Then "usr" looks like the resolve flag value: /.resolve/usr/bin
@@ -914,7 +911,7 @@ extension AllTests.ComponentViewTests {
     #expect(newComps == ["bin"])
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinInsertVolAtFront() {
     // /1234/5678/file -> insert ".vol" at 0
     // Becomes /.vol/1234/5678/file — anchor absorbs /.vol/1234/5678
@@ -933,7 +930,7 @@ extension AllTests.ComponentViewTests {
     #expect(newComps == ["file"])
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinRemoveComponentExposesAnchor() {
     // Reverse direction: remove first component to reveal anchor structure.
     // /prefix/.nofollow/foo -> remove "prefix" -> /.nofollow/foo
@@ -954,7 +951,7 @@ extension AllTests.ComponentViewTests {
     #expect(newComps == ["foo"])
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinReplaceFirstExposesVol() {
     // Replace first component to create .vol anchor
     // /old/1234/5678 -> replace "old" with ".vol" -> /.vol/1234/5678
@@ -974,7 +971,7 @@ extension AllTests.ComponentViewTests {
     #expect(newComps == [])
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinNofollowOnRelativePathIsSafe() {
     // .nofollow only triggers anchor parsing on absolute paths
     FilePath.REVIEW_ONLY_platform = .darwin
@@ -989,7 +986,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.description == ".nofollow/a/b")
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinNofollowNotFirstIsSafe() {
     // .nofollow only triggers when it's the path-initial dot component
     FilePath.REVIEW_ONLY_platform = .darwin
@@ -1005,7 +1002,7 @@ extension AllTests.ComponentViewTests {
 
   // -- Darwin resource fork hazards --
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinAppendCreatesResourceFork() {
     // Appending "rsrc" after a component named "..namedfork" produces
     // a path whose tail matches the /..namedfork/rsrc suffix pattern.
@@ -1026,7 +1023,7 @@ extension AllTests.ComponentViewTests {
     #expect(newComps == ["file"])
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinInsertBeforeRsrcBreaksSuffix() {
     // Inserting between "..namedfork" and "rsrc" breaks the suffix pattern
     FilePath.REVIEW_ONLY_platform = .darwin
@@ -1046,7 +1043,7 @@ extension AllTests.ComponentViewTests {
     #expect(!path.isResourceFork)
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinRemoveLastCreatesResourceFork() {
     // /dir/file/..namedfork/rsrc/extra — the suffix doesn't match because
     // of trailing content. Removing "extra" exposes the suffix.
@@ -1069,7 +1066,7 @@ extension AllTests.ComponentViewTests {
     #expect(newComps == ["dir", "file"])
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinReplaceCreatesResourceFork() {
     // Replace last component with "rsrc" when penultimate is "..namedfork"
     FilePath.REVIEW_ONLY_platform = .darwin
@@ -1086,7 +1083,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.components.map(\.description) == ["data"])
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func darwinResourceForkOnRelativeIsSafe() {
     // Resource fork suffix works on relative paths too
     FilePath.REVIEW_ONLY_platform = .darwin
@@ -1102,7 +1099,7 @@ extension AllTests.ComponentViewTests {
 
   // -- Windows reparse hazards --
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func windowsRemoveExposesRootBackslash() {
     // \\server\share\only -> remove "only" -> \\server\share\
     // The trailing separator now belongs to the UNC anchor.
@@ -1121,7 +1118,7 @@ extension AllTests.ComponentViewTests {
     #expect(path.hasTrailingSeparator)
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func windowsVerbatimDotPreserved() {
     // In verbatim paths (\\?\), dot and dotdot are regular components.
     // Appending "." to a verbatim path should NOT be treated as currentDirectory.
@@ -1137,7 +1134,7 @@ extension AllTests.ComponentViewTests {
     #expect(lastComp.kind == .regular)
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func windowsVerbatimDotDotPreserved() {
     // Similarly, ".." in verbatim paths is just a literal name
     FilePath.REVIEW_ONLY_platform = .windows
@@ -1151,7 +1148,7 @@ extension AllTests.ComponentViewTests {
     #expect(lastComp.kind == .regular)
   }
 
-  @Test(.enabled(if: reparseHazardsEnabled))
+  @Test
   func windowsDevicePathAppend() {
     // \\.\device paths: appending to a device-only path
     FilePath.REVIEW_ONLY_platform = .windows

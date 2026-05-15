@@ -51,7 +51,13 @@ extension FilePath {
       self = FilePath()
       defer {
         self = view._path
-        if self.anchor != originalAnchor {
+        // The only case requiring intervention: the storage was
+        // wholesale-replaced (default `removeAll()` resets the view via
+        // `Self()`; explicit assignment of an anchorless view replaces
+        // `_path` outright). The anchor wasn't removed by anything the
+        // user did *to components* — it was collateral damage from
+        // replacing `_path`. Restore it.
+        if self.anchor == nil && originalAnchor != nil {
           self.anchor = originalAnchor
         }
       }

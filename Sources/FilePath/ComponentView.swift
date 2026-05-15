@@ -123,6 +123,12 @@ extension FilePath.ComponentView: BidirectionalCollection {
 }
 
 // MARK: - RangeReplaceableCollection
+//
+// The anchor of the result follows from whatever the path string is
+// after mutation. RRC operations splice bytes within the relative
+// region; the resulting path is then re-decomposed fresh — its anchor,
+// resource fork status, and trailing-separator status are whatever the
+// resulting bytes parse as.
 
 extension FilePath.ComponentView: RangeReplaceableCollection {
   public init() {
