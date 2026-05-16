@@ -64,17 +64,17 @@ The full public surface described in the proposal:
 
 - **Degenerate Windows UNC paths**: Paths like `\\server` (no share), `\\` (bare double backslash), and `\\server\` (server but no share name) are commented out in the test data as "behavior TBD."
 
-- **Reparse after component mutation (resolved — documented behavior)**: **The anchor of the result follows from whatever the path string is after mutation.** Mutating `ComponentView` and writing it back goes through reconstruction without re-normalization; the resulting path string is what the kernel will see, and we report whatever decomposition that string has. Concretely:
+- **Reparse after component mutation (resolved — documented behavior)**: **The anchor of the result follows from whatever the path string is after mutation.** `ComponentView` operations splice bytes within `self._storage`'s post-anchor region; the anchor bytes are physically untouched, so the path's anchor changes only via re-decomposition of the resulting string. Concretely:
 
   - **Darwin anchor absorption**: Inserting `.nofollow`, `.resolve`, or `.vol` as the first component of an absolute path causes re-decomposition to absorb components into the anchor. For example, `/foo/bar` → insert `.nofollow` at 0 → `/.nofollow/foo/bar` → anchor becomes `/.nofollow/` and the components become `["foo", "bar"]`. Removing or replacing the first component can similarly expose a previously-hidden anchor pattern (e.g., `/prefix/.nofollow/foo` → remove `prefix` → anchor `/.nofollow/`, components `["foo"]`).
 
-  - **Darwin resource fork emergence**: Appending `rsrc` after a `..namedfork` component (or removing a component that masked the `/..namedfork/rsrc` suffix pattern) causes the path to re-decompose with `isResourceFork == true` and the `..namedfork/rsrc` tail dropped from the components view.
+  - **Darwin resource fork emergence/disappearance**: RRC operations that touch the end of the components view affect the suffix region too — `removeAll`, `removeLast`, `append`, and end-touching `replaceSubrange` all replace the suffix bytes (so `append` on a path with a resource fork strips it; `removeLast` on a path with multiple components strips it). Middle inserts/replaces don't touch the suffix region, so the resource fork is preserved across them. Re-decomposition then sees whether `/..namedfork/rsrc` is or isn't present at the end of storage.
 
   - **Windows verbatim context**: Components inserted into `\\?\` paths retain verbatim semantics on re-decomposition (`.` and `..` parse as regular component names).
 
-  Anchor preservation across mutation is selective: if a mutation causes the anchor to disappear entirely (e.g., default `removeAll()`, or assigning an anchorless `ComponentView`), the original anchor is restored. If a mutation causes the anchor to change to a different non-nil anchor (the absorption cases above), the new anchor stands. Callers wanting strict component-position preservation should construct via `init(anchor:_:hasTrailingSeparator:)` rather than mutating components.
+  Property assignment (`path.components = newCv`) splices `newCv`'s contributed bytes — `[_originalStart, _suffixEnd)` of `newCv._path._storage` — into self's post-anchor region. `_originalStart` is captured at view creation and stays put even after absorption shifts the re-parsed anchor end, so an absorption-then-assign sequence produces the same result as in-place mutation. Self's anchor is preserved by construction; cross-anchor assignment (a cv whose `_path` has a different anchor) just splices the cv's component bytes — cv's anchor is not transferred.
 
-  Tests for all of these are in `ComponentViewTests` under "Re-decomposition after component mutation."
+  Tests for all of these are in `ComponentViewTests` under "Re-decomposition after component mutation" and "Cross-anchor assignment."
 
 ## Test results
 

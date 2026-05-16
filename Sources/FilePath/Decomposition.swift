@@ -23,15 +23,20 @@ extension FilePath {
       _internalInvariant(relBegin >= rootEnd)
       if let newAnchor = newValue {
         // Replace old root region (including gap separator) with new
-        // anchor, adding a gap separator if the new anchor needs one
-        var newBytes = Array(newAnchor._slice)
+        // anchor bytes. If the new anchor's shape needs a gap
+        // separator before existing relative content, insert one
+        // afterwards rather than copying the bytes through an
+        // intermediate Array.
         let hasRelativeContent = relBegin < _storage.endIndex
-        if hasRelativeContent,
-           let last = newBytes.last,
-           !isSeparator(last) && last != ._colon {
-          newBytes.append(platformSeparator)
+        let needsSep = hasRelativeContent
+          && _anchorNeedsGapSeparator(newAnchor._slice)
+        _storage.replaceSubrange(
+          _storage.startIndex..<relBegin, with: newAnchor._slice)
+        if needsSep {
+          let after = _storage.index(
+            _storage.startIndex, offsetBy: newAnchor._slice.count)
+          _storage.insert(platformSeparator, at: after)
         }
-        _storage.replaceSubrange(_storage.startIndex..<relBegin, with: newBytes)
       } else {
         _storage.removeSubrange(_storage.startIndex..<relBegin)
       }
@@ -43,25 +48,38 @@ extension FilePath {
 
 extension FilePath {
   /// View the relative path components that make up this path.
+  ///
+  /// The anchor of the result follows from whatever the path string is
+  /// after mutation: re-decomposition of the resulting bytes is what the
+  /// kernel sees, and is what we report.
+  ///
+  /// `set` splices the new view's contributed bytes
+  /// (`[_originalStart, _suffixEnd)`) into self's post-anchor region —
+  /// self's anchor bytes are physically untouched, so the anchor is
+  /// preserved by construction. Mutation that produces bytes parsing
+  /// as a different anchor (e.g. inserting `.nofollow` at the front of
+  /// an absolute Darwin path) lets the new anchor stand, because the
+  /// absorbed bytes are inside the spliced region.
+  ///
+  /// In-place mutation (`path.components.append(x)`) lowers to
+  /// get-mutate-set: the temporary view's mutating method splices into
+  /// its own `_path`, then `set` splices that result back into self.
   public var components: ComponentView {
     get { ComponentView(self) }
-    _modify {
-      let originalAnchor = self.anchor
-      var view = ComponentView(self)
-      self = FilePath()
-      defer {
-        self = view._path
-        // The only case requiring intervention: the storage was
-        // wholesale-replaced (default `removeAll()` resets the view via
-        // `Self()`; explicit assignment of an anchorless view replaces
-        // `_path` outright). The anchor wasn't removed by anything the
-        // user did *to components* — it was collateral damage from
-        // replacing `_path`. Restore it.
-        if self.anchor == nil && originalAnchor != nil {
-          self.anchor = originalAnchor
-        }
-      }
-      yield &view
+    set {
+      let (selfRootEnd, _) = _storage._parseRoot()
+      let cvBytes = newValue._path._storage[
+        newValue._originalStart..<newValue._suffixEnd]
+
+      // Truncate to just the anchor, then append the gap separator
+      // (if needed) and the contribution. No inserts, no intermediary
+      // — every byte in `cvBytes` is copied exactly once.
+      let needsSep = !cvBytes.isEmpty
+        && _anchorNeedsGapSeparator(_storage[..<selfRootEnd])
+        && !isSeparator(cvBytes.first!)
+      _storage.removeSubrange(selfRootEnd..<_storage.endIndex)
+      if needsSep { _storage.append(platformSeparator) }
+      _storage.append(contentsOf: cvBytes)
     }
   }
 }
@@ -216,16 +234,10 @@ extension FilePath {
 
     for (i, comp) in comps.enumerated() {
       if i == 0 {
-        if let anchor = anchor {
-          // Separator between anchor and first component:
-          // - If anchor ends with separator: no extra sep needed
-          // - If anchor ends with `:` (Windows drive-relative): no sep
-          // - Otherwise: add separator
-          if let last = anchor._slice.last {
-            if !isSeparator(last) && last != ._colon {
-              str.append(platformSeparator)
-            }
-          }
+        // Insert a separator between anchor and first component if the
+        // anchor's shape needs one.
+        if let anchor = anchor, _anchorNeedsGapSeparator(anchor._slice) {
+          str.append(platformSeparator)
         }
       } else {
         str.append(platformSeparator)

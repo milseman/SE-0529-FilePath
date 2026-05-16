@@ -12,24 +12,39 @@ extension FilePath {
   /// components that make up a file path.
   public struct ComponentView: Sendable {
     internal var _path: FilePath
-    internal var _start: SystemString.Index
-    internal var _end: SystemString.Index
+
+    // Start of this view's contribution in _path._storage. Set at
+    // creation (= source path's rootEnd at that moment), immutable
+    // through mutations. Used by the splice in `FilePath.components`'s
+    // `set` to copy this view's bytes into a target. _relStart may move
+    // forward as absorption shifts the re-parsed anchor; _originalStart
+    // does not.
+    internal let _originalStart: SystemString.Index
+
+    // Recomputed after each `replaceSubrange`. Used for iteration.
+    internal var _relStart: SystemString.Index   // first byte of components
+    internal var _relEnd: SystemString.Index     // start of suffix (or storage end)
+    internal var _suffixEnd: SystemString.Index  // end of storage
 
     internal init(_ path: FilePath) {
       self._path = path
-      let (_, relBegin) = path._storage._parseRoot()
-      self._start = relBegin
+      let (rootEnd, relBegin) = path._storage._parseRoot()
+      self._originalStart = rootEnd
+      self._relStart = relBegin
 
       if _isDarwin, let rsrcStart = path._storage._resourceForkSuffixStart {
         // If suffix starts before or at the relative region, there are
         // no relative components at all.
-        self._end = rsrcStart >= relBegin ? rsrcStart : relBegin
+        self._relEnd = rsrcStart >= relBegin ? rsrcStart : relBegin
       } else {
-        self._end = path._storage.endIndex
+        self._relEnd = path._storage.endIndex
       }
-      _internalInvariant(_start <= _end)
-      _internalInvariant(_start >= path._storage.startIndex)
-      _internalInvariant(_end <= path._storage.endIndex)
+      self._suffixEnd = path._storage.endIndex
+
+      _internalInvariant(_originalStart <= _relStart)
+      _internalInvariant(_relStart <= _relEnd)
+      _internalInvariant(_relEnd <= _suffixEnd)
+      _internalInvariant(_suffixEnd == path._storage.endIndex)
     }
   }
 }
@@ -55,7 +70,7 @@ extension FilePath.ComponentView {
 extension FilePath.ComponentView {
   internal func _componentEnd(at pos: SystemString.Index) -> SystemString.Index {
     var i = pos
-    while i < _end && !isSeparator(_path._storage[i]) {
+    while i < _relEnd && !isSeparator(_path._storage[i]) {
       _path._storage.formIndex(after: &i)
     }
     return i
@@ -63,7 +78,7 @@ extension FilePath.ComponentView {
 
   internal func _skipSeparators(from pos: SystemString.Index) -> SystemString.Index {
     var i = pos
-    while i < _end && isSeparator(_path._storage[i]) {
+    while i < _relEnd && isSeparator(_path._storage[i]) {
       _path._storage.formIndex(after: &i)
     }
     return i
@@ -77,14 +92,13 @@ extension FilePath.ComponentView: BidirectionalCollection {
 
   public var startIndex: Index {
     // Skip gap separator(s) between anchor and first component
-    Index(_skipSeparators(from: _start))
+    Index(_skipSeparators(from: _relStart))
   }
 
   public var endIndex: Index {
-    // endIndex is the physical end of the component region.
-    // index(after:) on the last component will land here by skipping
-    // past the trailing separator (if any).
-    Index(_end)
+    // endIndex is the end of the iterable (component) region — the start
+    // of any suffix (resource fork) or end of storage if no suffix.
+    Index(_relEnd)
   }
 
   public var isEmpty: Bool {
@@ -141,11 +155,16 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
     let touchesEnd = subrange.upperBound == endIndex &&
                      !(subrange.isEmpty && newElements.isEmpty)
 
-    // Compute byte range to splice.
+    // Compute byte range to splice. When the subrange touches endIndex,
+    // we extend to _suffixEnd (end of storage including any suffix
+    // bytes), NOT just to _relEnd. RRC operations that touch the end
+    // affect the entire suffix region — `removeLast` strips a trailing
+    // separator OR a resource fork; `append` replaces the suffix bytes
+    // with the new component.
     let byteLower = subrange.lowerBound._storage
     let byteUpper: SystemString.Index
     if touchesEnd {
-      byteUpper = _path._storage.endIndex
+      byteUpper = _suffixEnd
     } else {
       byteUpper = subrange.upperBound._storage
     }
@@ -157,8 +176,8 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
       // includes the removed component(s) plus the separator(s) joining
       // them to the NEXT component. We just need to handle the boundary
       // separator correctly:
-      // - touchesEnd: no trailing separator in range (extends to physical
-      //   end), so remove the PRECEDING separator.
+      // - touchesEnd: no trailing separator in range (extends to _relEnd),
+      //   so remove the PRECEDING separator.
       // - removing from start: range already includes trailing sep, just
       //   remove as-is.
       // - removing from middle: range already includes trailing sep that
@@ -167,56 +186,68 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
       let adjUpper = byteUpper
 
       if touchesEnd {
-        if adjLower > _start
+        if adjLower > _relStart
            && isSeparator(_path._storage[_path._storage.index(before: adjLower)]) {
           _path._storage.formIndex(before: &adjLower)
         }
       }
       _path._storage.removeSubrange(adjLower..<adjUpper)
     } else {
-      // Build replacement with separators between components
-      var str = SystemString()
-      for (i, comp) in newArray.enumerated() {
-        if i > 0 { str.append(platformSeparator) }
-        str.append(contentsOf: comp._slice)
-      }
-
       // Boundary separators
       let needLeadingSep: Bool
-      if byteLower > _start {
+      if byteLower > _relStart {
         needLeadingSep = !isSeparator(
           _path._storage[_path._storage.index(before: byteLower)])
-      } else if _path._storage.startIndex < _start {
-        let anchorLast = _path._storage[_path._storage.index(before: _start)]
-        needLeadingSep = !isSeparator(anchorLast)
+      } else if _path._storage.startIndex < _relStart {
+        // Inserting at the start of the relative region. Add a gap
+        // separator if the anchor (plus any existing gap sep up to
+        // _relStart) needs one before component bytes.
+        needLeadingSep = _anchorNeedsGapSeparator(_path._storage[..<_relStart])
       } else {
         needLeadingSep = false
       }
 
-      let needTrailingSep: Bool
-      if !touchesEnd && byteUpper < _end
-         && !isSeparator(_path._storage[byteUpper]) {
-        needTrailingSep = true
+      if touchesEnd {
+        // The splice runs to end-of-storage. Truncate, then append —
+        // no intermediary, no inserts. There's no trailing sep in
+        // this case (touchesEnd implies the splice consumes everything
+        // up to and including any existing suffix bytes).
+        _path._storage.removeSubrange(byteLower..<byteUpper)
+        if needLeadingSep { _path._storage.append(platformSeparator) }
+        for (i, comp) in newArray.enumerated() {
+          if i > 0 { _path._storage.append(platformSeparator) }
+          _path._storage.append(contentsOf: comp._slice)
+        }
       } else {
-        needTrailingSep = false
+        // Middle splice — there's a tail after byteUpper that has to
+        // stay put. We need a single replaceSubrange to keep the
+        // tail's index arithmetic straight, which means an intermediary.
+        let needTrailingSep =
+          byteUpper < _relEnd && !isSeparator(_path._storage[byteUpper])
+
+        var bytes = SystemString()
+        if needLeadingSep { bytes.append(platformSeparator) }
+        for (i, comp) in newArray.enumerated() {
+          if i > 0 { bytes.append(platformSeparator) }
+          bytes.append(contentsOf: comp._slice)
+        }
+        if needTrailingSep { bytes.append(platformSeparator) }
+
+        _path._storage.replaceSubrange(byteLower..<byteUpper, with: bytes)
       }
-
-      var withBoundary = SystemString()
-      if needLeadingSep { withBoundary.append(platformSeparator) }
-      withBoundary.append(contentsOf: str)
-      if needTrailingSep { withBoundary.append(platformSeparator) }
-
-      _path._storage.replaceSubrange(byteLower..<byteUpper, with: withBoundary)
     }
 
-    // Recompute view bounds
+    // Recompute the mutable trio. _originalStart does NOT move — it
+    // marks where this view's contribution starts in storage, regardless
+    // of how the post-mutation bytes re-decompose.
     let (_, newRelBegin) = _path._storage._parseRoot()
-    _start = newRelBegin
+    _relStart = newRelBegin
     if _isDarwin, let rsrcStart = _path._storage._resourceForkSuffixStart {
-      _end = rsrcStart >= newRelBegin ? rsrcStart : newRelBegin
+      _relEnd = rsrcStart >= newRelBegin ? rsrcStart : newRelBegin
     } else {
-      _end = _path._storage.endIndex
+      _relEnd = _path._storage.endIndex
     }
+    _suffixEnd = _path._storage.endIndex
   }
 }
 

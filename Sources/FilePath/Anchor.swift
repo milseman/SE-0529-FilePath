@@ -28,17 +28,10 @@ extension FilePath {
     public var isRooted: Bool {
       if !_isWindows { return true }
 
-      // On Windows, `\` and `C:` are the only non-rooted anchors with
-      // roots (relative roots). All absolute anchors are rooted.
-      // Wait, `\` IS rooted but not absolute.
-      // `C:` is NOT rooted (relative to CWD on that drive).
-      let slice = _slice
-      // `\` - rooted
-      if slice.count == 1 && slice.first == ._backslash { return true }
-      // `C:` - not rooted
-      if slice.count == 2 && slice.last == ._colon { return false }
-      // Everything else (C:\, \\server\share, \\?\, etc.) is rooted
-      return true
+      // On Windows, the only non-rooted anchor is drive-relative `C:`
+      // (relative to the CWD on that drive). Everything else — `\`,
+      // `C:\`, `\\server\share`, `\\?\...` — is rooted.
+      return !_isDriveRelativeAnchor(_slice)
     }
 
     /// The drive letter of this anchor, if any.

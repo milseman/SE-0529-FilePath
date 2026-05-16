@@ -132,7 +132,7 @@ extension SystemString: RangeReplaceableCollection {
   }
 
   internal func withContiguousStorageIfAvailable<R>(
-    _ body: (UnsafeBufferPointer<SystemChar>) throws -> R
+    _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> R
   ) rethrows -> R? {
     try unsafe nullTerminatedStorage.withContiguousStorageIfAvailable {
       try unsafe body(.init(start: $0.baseAddress, count: $0.count-1))
@@ -140,11 +140,11 @@ extension SystemString: RangeReplaceableCollection {
   }
 
   internal mutating func withContiguousMutableStorageIfAvailable<R>(
-    _ body: (inout UnsafeMutableBufferPointer<SystemChar>) throws -> R
+    _ body: (inout UnsafeMutableBufferPointer<FilePath.CodeUnit>) throws -> R
   ) rethrows -> R? {
     defer { _invariantCheck() }
     return try unsafe nullTerminatedStorage.withContiguousMutableStorageIfAvailable {
-      var buffer = unsafe UnsafeMutableBufferPointer<SystemChar>(
+      var buffer = unsafe UnsafeMutableBufferPointer<FilePath.CodeUnit>(
         start: $0.baseAddress, count: $0.count-1
       )
       return try unsafe body(&buffer)

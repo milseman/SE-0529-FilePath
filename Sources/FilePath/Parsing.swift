@@ -18,6 +18,59 @@ internal func isSeparator(_ c: FilePath.CodeUnit) -> Bool {
   c == platformSeparator
 }
 
+// MARK: - Anchor shape classification
+
+/// Returns `true` if the given anchor bytes are the Windows
+/// drive-relative form `<letter>:` (e.g. `C:`).
+///
+/// Drive-relative is the *only* 2-byte anchor across all platforms:
+/// Linux `/` is 1 byte; Darwin magic anchors (`/.nofollow/`,
+/// `/.resolve/N/`, `/.vol/FSID/FILEID`) are all longer; UNC
+/// (`\\server\share`) and verbatim variants are all longer. So the
+/// "2-byte anchor ending in `:`" shape uniquely identifies
+/// drive-relative — and traps if we're not on Windows.
+///
+/// The `:` IS the boundary in this anchor: `C:foo` is valid
+/// (drive-relative with one component); `C:\foo` is a different
+/// anchor (drive-absolute). Other anchor shapes that happen to end
+/// in `:` — UNC with a colon-ending share name (`\\server\C:`),
+/// Darwin volfs with a colon-ending FILEID — are NOT 2 bytes and
+/// don't match.
+internal func _isDriveRelativeAnchor(
+  _ anchorBytes: some BidirectionalCollection<FilePath.CodeUnit>
+) -> Bool {
+  guard anchorBytes.count == 2, anchorBytes.last == ._colon else {
+    return false
+  }
+  _internalInvariant(_isWindows, "2-byte colon anchor only exists on Windows")
+  return true
+}
+
+/// Returns `true` if a separator must be inserted between the given
+/// anchor bytes and the first component byte that follows them.
+///
+/// No separator is needed when:
+/// - the anchor's last byte is already a separator (most cases:
+///   `/`, `C:\`, `\\?\C:\`, `\\server\share\`, `/.nofollow/`, etc.), or
+/// - the anchor is the Windows drive-relative form `<letter>:`, where
+///   the `:` itself IS the boundary (`C:foo` is valid; `C:\foo` is a
+///   different anchor — drive-absolute).
+///
+/// A separator IS needed for the other shapes whose last byte is a
+/// name byte: `\\server\share`, `\\?\UNC\server\share`, `\\?\name`,
+/// `/.vol/FSID/FILEID` — including degenerate cases where one of
+/// those name bytes happens to be `:` (e.g. UNC share `\\server\C:`
+/// or volfs FILEID ending in `:`). Those are NOT 2 bytes, so they
+/// don't match the drive-relative shape.
+internal func _anchorNeedsGapSeparator(
+  _ anchorBytes: some BidirectionalCollection<FilePath.CodeUnit>
+) -> Bool {
+  guard let last = anchorBytes.last else { return false }
+  if isSeparator(last) { return false }
+  if _isDriveRelativeAnchor(anchorBytes) { return false }
+  return true
+}
+
 // MARK: - Root parsing
 
 extension SystemString {

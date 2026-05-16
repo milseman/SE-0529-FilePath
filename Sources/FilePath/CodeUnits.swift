@@ -135,10 +135,10 @@ extension FilePath.ComponentView {
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
-    // The component view spans [_start, _end) in the path's storage.
+    // The component view spans [_relStart, _relEnd) in the path's storage.
     // Strip trailing separator (it is suffix, not part of components).
-    var end = _end
-    if end > _start
+    var end = _relEnd
+    if end > _relStart
        && isSeparator(_path._storage[_path._storage.index(before: end)]) {
       let (_, relBegin) = _path._storage._parseRoot()
       let sepIdx = _path._storage.index(before: end)
@@ -146,13 +146,13 @@ extension FilePath.ComponentView {
         end = sepIdx
       }
     }
-    let count = _path._storage.distance(from: _start, to: end)
+    let count = _path._storage.distance(from: _relStart, to: end)
     if count == 0 {
       return try unsafe body(UnsafeBufferPointer(start: nil, count: 0))
     }
     return try unsafe _path._storage.withNullTerminatedCodeUnits { fullBuf in
       let startOffset = _path._storage.distance(
-        from: _path._storage.startIndex, to: _start)
+        from: _path._storage.startIndex, to: _relStart)
       let p = unsafe fullBuf.baseAddress!.advanced(by: startOffset)
       return try unsafe body(UnsafeBufferPointer(start: p, count: count))
     }
