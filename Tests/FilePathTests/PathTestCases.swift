@@ -1906,6 +1906,69 @@ let pathTestCases: [PathTestCase] = [
             printed: #"\\?\foo\bar"#, isAbsolute: true)
     ),
 
+    // GLOBALROOT (NT-namespace escape): name terminates at first backslash
+    PathTestCase(
+        input: #"\\?\GLOBALROOT\Device\HarddiskVolume1\foo"#,
+        unix: .singleComponent(#"\\?\GLOBALROOT\Device\HarddiskVolume1\foo"#),
+        windows: Expected(
+            anchor: #"\\?\GLOBALROOT"#,
+            components: ["Device", "HarddiskVolume1", "foo"],
+            printed: #"\\?\GLOBALROOT\Device\HarddiskVolume1\foo"#,
+            isAbsolute: true)
+    ),
+
+    // Volume GUID (volumes without a drive letter)
+    PathTestCase(
+        input: #"\\?\Volume{12345678-1234-1234-1234-123456789012}\foo\bar"#,
+        unix: .singleComponent(
+            #"\\?\Volume{12345678-1234-1234-1234-123456789012}\foo\bar"#),
+        windows: Expected(
+            anchor: #"\\?\Volume{12345678-1234-1234-1234-123456789012}"#,
+            components: ["foo", "bar"],
+            printed: #"\\?\Volume{12345678-1234-1234-1234-123456789012}\foo\bar"#,
+            isAbsolute: true)
+    ),
+
+    // DosDevices symlink (e.g. PIPE)
+    PathTestCase(
+        input: #"\\?\PIPE\mypipe"#,
+        unix: .singleComponent(#"\\?\PIPE\mypipe"#),
+        windows: Expected(
+            anchor: #"\\?\PIPE"#, components: ["mypipe"],
+            printed: #"\\?\PIPE\mypipe"#, isAbsolute: true)
+    ),
+
+    // .. NOT special in verbatim plain: regular component
+    PathTestCase(
+        input: #"\\?\GLOBALROOT\..\foo"#,
+        unix: .singleComponent(#"\\?\GLOBALROOT\..\foo"#),
+        windows: Expected(
+            anchor: #"\\?\GLOBALROOT"#, components: ["..", "foo"],
+            printed: #"\\?\GLOBALROOT\..\foo"#, isAbsolute: true,
+            kinds: [.regular, .regular])
+    ),
+
+    // . NOT special in verbatim plain: regular component (not dropped)
+    PathTestCase(
+        input: #"\\?\GLOBALROOT\.\foo"#,
+        unix: .singleComponent(#"\\?\GLOBALROOT\.\foo"#),
+        windows: Expected(
+            anchor: #"\\?\GLOBALROOT"#, components: [".", "foo"],
+            printed: #"\\?\GLOBALROOT\.\foo"#, isAbsolute: true,
+            kinds: [.regular, .regular])
+    ),
+
+    // / inside verbatim plain component is a regular byte, not a separator
+    PathTestCase(
+        input: #"\\?\GLOBALROOT\foo/bar"#,
+        unix: Expected(
+            anchor: nil, components: [#"\\?\GLOBALROOT\foo"#, "bar"],
+            printed: #"\\?\GLOBALROOT\foo/bar"#, isAbsolute: false),
+        windows: Expected(
+            anchor: #"\\?\GLOBALROOT"#, components: ["foo/bar"],
+            printed: #"\\?\GLOBALROOT\foo/bar"#, isAbsolute: true)
+    ),
+
     // MARK: - Device path forward slashes for pipes
 
     // Dot dropped (rooted) on Unix, device-namespace pipe on Windows
