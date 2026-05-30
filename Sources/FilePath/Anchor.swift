@@ -35,12 +35,23 @@ extension FilePath {
     }
 
     /// The drive letter of this anchor, if any.
-    public var driveLetter: Character? {
+    ///
+    /// Returns the single code unit preceding the colon for drive-style
+    /// anchors (`C:\`, `C:`, `\\?\C:\`, `\\.\C:\`), and `nil` for UNC
+    /// anchors, non-drive device anchors, and the current-drive root `\`.
+    ///
+    /// The value is presented as written, without case normalization.
+    /// If the drive letter is an unpaired surrogate, `U+FFFD` is returned.
+    ///
+    /// NOTE: The proposal gates this under `#if os(Windows)`; it is kept
+    /// cross-platform here so the `REVIEW_ONLY` platform simulation can
+    /// exercise it. On non-Windows platforms it returns `nil`.
+    public var driveLetter: Unicode.Scalar? {
       if !_isWindows { return nil }
 
       if let parsed = _parseWindowsAnchor() {
         if let d = parsed.drive {
-          return d._asciiScalar.map { Character($0) }
+          return d._driveLetterScalar
         }
       }
       return nil

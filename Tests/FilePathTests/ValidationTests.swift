@@ -92,7 +92,9 @@ extension AllTests.ValidationTests {
     for input in ["/foo/bar", "", ".", "foo/bar", "/usr/local/bin", "hello"] {
       let s: String = input
       let path = FilePath(s)!
-      let extracted = path.withCodeUnits { Array($0) }
+      let extracted = path.withCodeUnits { ptr, count in
+        Array(UnsafeBufferPointer(start: ptr, count: count))
+      }
       let roundTripped = filePathFromCodeUnits(extracted)
       #expect(roundTripped == path,
         "Code unit round-trip failed for \(input.debugDescription)")
@@ -105,7 +107,9 @@ extension AllTests.ValidationTests {
     for input in ["/café/naïve", "/あ/🧟‍♀️", "Ångström"] {
       let s: String = input
       let path = FilePath(s)!
-      let extracted = path.withCodeUnits { Array($0) }
+      let extracted = path.withCodeUnits { ptr, count in
+        Array(UnsafeBufferPointer(start: ptr, count: count))
+      }
       let roundTripped = filePathFromCodeUnits(extracted)
       #expect(roundTripped == path,
         "Non-ASCII code unit round-trip failed for \(input.debugDescription)")
@@ -292,45 +296,49 @@ extension AllTests.ValidationTests {
     #expect(!rel.isAbsolute)
   }
 
-  // MARK: - withCString
+  // MARK: - withCodeUnits
 
   @Test
-  func withCStringProvidesCString() {
+  func withCodeUnitsProvidesPointerAndCount() {
     FilePath.REVIEW_ONLY_platform = .linux
     let path: FilePath = "/foo/bar"
-    path.withCString { ptr in
+    path.withCodeUnits { ptr, count in
+      #expect(count == 8)
       #expect(ptr[0] == CChar(UInt8(ascii: "/")))
       #expect(ptr[1] == CChar(UInt8(ascii: "f")))
       #expect(ptr[4] == CChar(UInt8(ascii: "/")))
-      #expect(ptr[8] == 0)
+      // The count excludes the null terminator, which sits at [count].
+      #expect(ptr[count] == 0)
     }
   }
 
   @Test
-  func withCStringEmpty() {
+  func withCodeUnitsEmpty() {
     FilePath.REVIEW_ONLY_platform = .linux
     let path: FilePath = ""
-    path.withCString { ptr in
+    path.withCodeUnits { ptr, count in
+      #expect(count == 0)
       #expect(ptr[0] == 0)
     }
   }
 
   @Test
-  func withCStringNonASCII() {
+  func withCodeUnitsNonASCII() {
     FilePath.REVIEW_ONLY_platform = .linux
     let path: FilePath = "/café"
-    path.withCString { ptr in
+    path.withCodeUnits { ptr, count in
+      // "/café" is 6 UTF-8 bytes: / c a f 0xC3 0xA9
+      #expect(count == 6)
       #expect(ptr[0] == CChar(UInt8(ascii: "/")))
-      // "café" is 5 UTF-8 bytes: c a f 0xC3 0xA9
       #expect(ptr[5] == CChar(bitPattern: 0xA9))
-      #expect(ptr[6] == 0)
+      #expect(ptr[count] == 0)
     }
   }
 
   @Test
-  func withCStringReturnsValue() {
+  func withCodeUnitsReturnsValue() {
     let path: FilePath = "/foo"
-    let len = path.withCString { ptr -> Int in
+    let len = path.withCodeUnits { (ptr, _) -> Int in
       var i = 0
       while ptr[i] != 0 { i += 1 }
       return i
@@ -339,12 +347,12 @@ extension AllTests.ValidationTests {
   }
 
   @Test
-  func withCStringThrowsTypedError() {
+  func withCodeUnitsThrowsTypedError() {
     struct TestError: Error {}
     let path: FilePath = "/foo"
     #expect(throws: TestError.self) {
-      try path.withCString {
-        (_: UnsafePointer<FilePath.CodeUnit>) throws(TestError) -> Int in
+      try path.withCodeUnits {
+        (_: UnsafePointer<FilePath.CodeUnit>, _: Int) throws(TestError) -> Int in
         throw TestError()
       }
     }

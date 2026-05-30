@@ -18,7 +18,7 @@ struct Expected {
   var printed: String
   var isAbsolute: Bool
   var isRooted: Bool? = nil
-  var driveLetter: Character? = nil
+  var driveLetter: Unicode.Scalar? = nil
   var kinds: [FilePath.Component.Kind]? = nil
 }
 

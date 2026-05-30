@@ -56,7 +56,7 @@ func printDetails(_ r: PlatformResult) {
     print("  anchor:")
     print("    description:        \(quoted(anchor.description))")
     print("    isRooted:           \(anchor.isRooted)")
-    print("    driveLetter:        \(anchor.driveLetter.map { quoted(String($0)) } ?? "nil")")
+    print("    driveLetter:        \(anchor.driveLetter.map { quoted(String(Character($0))) } ?? "nil")")
     print("    isVerbatimComponent: \(anchor.isVerbatimComponent)")
   } else {
     print("  anchor:               nil")

@@ -43,7 +43,7 @@ extension FilePath: CustomStringConvertible, CustomDebugStringConvertible {
 extension FilePath: ExpressibleByStringLiteral {
   /// Creates a file path from a string literal.
   ///
-  /// Traps if the literal contains `NUL`.
+  /// Traps if the literal contains `NUL` or is otherwise ill-formed.
   public init(stringLiteral: String) {
     guard let path = FilePath(stringLiteral) else {
       fatalError(

@@ -26,45 +26,43 @@ extension FilePath {
   #endif
 }
 
-// MARK: - withCString
+// MARK: - withCodeUnits (C interop)
 
 extension FilePath {
-  /// Calls the given closure with a pointer to the path's contents,
-  /// represented as a null-terminated sequence of platform code units.
-  /// The pointer is valid only for the duration of the closure.
+  /// Calls the given closure with a pointer to the path's null-terminated
+  /// contents and the number of code units preceding the null terminator.
+  /// The pointer is valid only for the duration of the closure, and the
+  /// count does not include the null terminator.
   ///
   /// On Windows the pointer is wide (`UnsafePointer<UInt16>`); see
   /// also `String.withCString(encodedAs:_:)`.
-  public func withCString<Result, E: Error>(
-    _ body: (UnsafePointer<FilePath.CodeUnit>) throws(E) -> Result
+  public func withCodeUnits<Result, E: Error>(
+    _ body: (UnsafePointer<FilePath.CodeUnit>, Int) throws(E) -> Result
   ) throws(E) -> Result {
     // Storage is already [FilePath.CodeUnit] with a trailing null, so
-    // we can just hand out its base address.
+    // we can just hand out its base address and the length sans null.
     let storage = _storage.nullTerminatedStorage
+    let count = storage.count - 1
     return try unsafe storage.withUnsafeBufferPointer { buf throws(E) in
-      try unsafe body(buf.baseAddress!)
+      try unsafe body(buf.baseAddress!, count)
     }
   }
 }
 
-// MARK: - Code unit access (stand-ins for Span-based API)
+// MARK: - Code unit access (Span stand-ins)
 
 // NOTE: The proposal specifies `var codeUnits: Span<CodeUnit>` on
-// FilePath, Component, Anchor, and ComponentView.  Span properties
-// require lifetime annotations not available without experimental
-// features.  These closure-based `withCodeUnits` methods are
-// stand-ins until the real Span API can be expressed.
+// FilePath, Component, Anchor, and ComponentView (and additionally
+// `var nullTerminatedCodeUnits` on FilePath).  Span properties require
+// lifetime annotations not available without experimental features, so
+// the buffer-based `withCodeUnits` methods below stand in for them on
+// Component, Anchor, and ComponentView.
+//
+// FilePath's own `var codeUnits` / `var nullTerminatedCodeUnits` are
+// subsumed by the proposal's `withCodeUnits(_:)` C-interop method above,
+// which hands back a null-terminated pointer plus the code-unit count.
 
 extension FilePath {
-  /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
-  ///
-  /// Access the code units of this path (not including null terminator).
-  public func withCodeUnits<T>(
-    _ body: (UnsafeBufferPointer<CodeUnit>) throws -> T
-  ) rethrows -> T {
-    try unsafe _storage.withCodeUnits(body)
-  }
-
   /// Creates a file path from a buffer of platform code units.
   ///
   /// The buffer should not include a null terminator. Returns `nil`

@@ -39,9 +39,15 @@ extension FilePath.CodeUnit {
            (UInt8(ascii: "A") ... UInt8(ascii: "Z")).contains(raw)
   }
 
-  internal var _asciiScalar: Unicode.Scalar? {
-    guard _isASCII else { return nil }
-    return Unicode.Scalar(UInt8(truncatingIfNeeded: self))
+  /// Interpret this code unit as a drive-letter scalar, presented as
+  /// written (no case normalization). On Windows, code units are
+  /// UTF-16 and an unpaired surrogate yields `U+FFFD`.
+  internal var _driveLetterScalar: Unicode.Scalar {
+    #if os(Windows)
+    return Unicode.Scalar(self) ?? "\u{FFFD}"
+    #else
+    return Unicode.Scalar(UInt8(bitPattern: self))
+    #endif
   }
 }
 

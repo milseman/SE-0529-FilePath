@@ -122,9 +122,12 @@ public struct FilePath: Sendable {
     return FilePath(_storage: result)
   }
 
-  /// The platform directory separator character.
-  public static var separator: Character {
-    _isWindows ? "\\" : "/"
+  /// The platform's canonical directory separator, as a code unit.
+  ///
+  /// On Linux and Darwin, this is the code unit for `/`.
+  /// On Windows, it is the code unit for `\`.
+  public static var separator: FilePath.CodeUnit {
+    platformSeparator
   }
 
   /// Whether this path is empty.
