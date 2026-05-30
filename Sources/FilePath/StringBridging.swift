@@ -58,7 +58,7 @@ extension FilePath: ExpressibleByStringLiteral {
   /// path byte on any supported platform.
   public init?(_ string: String) {
     guard !string.utf8.contains(0) else { return nil }
-    self.init(normalizing: SystemString(string))
+    self.init(normalizing: _SystemString(string))
   }
 }
 

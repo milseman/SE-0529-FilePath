@@ -19,12 +19,12 @@ extension FilePath {
     // `set` to copy this view's bytes into a target. _relStart may move
     // forward as absorption shifts the re-parsed anchor; _originalStart
     // does not.
-    internal let _originalStart: SystemString.Index
+    internal let _originalStart: _SystemString.Index
 
     // Recomputed after each `replaceSubrange`. Used for iteration.
-    internal var _relStart: SystemString.Index   // first byte of components
-    internal var _relEnd: SystemString.Index     // start of suffix (or storage end)
-    internal var _suffixEnd: SystemString.Index  // end of storage
+    internal var _relStart: _SystemString.Index   // first byte of components
+    internal var _relEnd: _SystemString.Index     // start of suffix (or storage end)
+    internal var _suffixEnd: _SystemString.Index  // end of storage
 
     internal init(_ path: FilePath) {
       self._path = path
@@ -53,13 +53,13 @@ extension FilePath {
 
 extension FilePath.ComponentView {
   public struct Index: Sendable, Comparable, Hashable {
-    internal var _storage: SystemString.Index
+    internal var _storage: _SystemString.Index
 
     public static func < (lhs: Self, rhs: Self) -> Bool {
       lhs._storage < rhs._storage
     }
 
-    internal init(_ idx: SystemString.Index) {
+    internal init(_ idx: _SystemString.Index) {
       self._storage = idx
     }
   }
@@ -68,7 +68,7 @@ extension FilePath.ComponentView {
 // MARK: - Internal helpers
 
 extension FilePath.ComponentView {
-  internal func _componentEnd(at pos: SystemString.Index) -> SystemString.Index {
+  internal func _componentEnd(at pos: _SystemString.Index) -> _SystemString.Index {
     var i = pos
     while i < _relEnd && !isSeparator(_path._storage[i]) {
       _path._storage.formIndex(after: &i)
@@ -76,7 +76,7 @@ extension FilePath.ComponentView {
     return i
   }
 
-  internal func _skipSeparators(from pos: SystemString.Index) -> SystemString.Index {
+  internal func _skipSeparators(from pos: _SystemString.Index) -> _SystemString.Index {
     var i = pos
     while i < _relEnd && isSeparator(_path._storage[i]) {
       _path._storage.formIndex(after: &i)
@@ -162,7 +162,7 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
     // separator OR a resource fork; `append` replaces the suffix bytes
     // with the new component.
     let byteLower = subrange.lowerBound._storage
-    let byteUpper: SystemString.Index
+    let byteUpper: _SystemString.Index
     if touchesEnd {
       byteUpper = _suffixEnd
     } else {
@@ -225,7 +225,7 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
         let needTrailingSep =
           byteUpper < _relEnd && !isSeparator(_path._storage[byteUpper])
 
-        var bytes = SystemString()
+        var bytes = _SystemString()
         if needLeadingSep { bytes.append(platformSeparator) }
         for (i, comp) in newArray.enumerated() {
           if i > 0 { bytes.append(platformSeparator) }

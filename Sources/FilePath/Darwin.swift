@@ -14,11 +14,11 @@
 // - Volume references: /.vol/FSID/FILEID
 
 internal struct _ParsedDarwinAnchor {
-  var anchorEnd: SystemString.Index
-  var relativeBegin: SystemString.Index
+  var anchorEnd: _SystemString.Index
+  var relativeBegin: _SystemString.Index
 }
 
-extension SystemString {
+extension _SystemString {
   // Try to parse a Darwin-specific anchor.
   // Returns nil if this is just a plain `/` root.
   internal func _parseDarwinAnchor() -> _ParsedDarwinAnchor? {
@@ -137,7 +137,7 @@ extension SystemString {
     guard fileidStart < fileidEnd else { return nil }
 
     // anchorEnd is at fileidEnd (the anchor is /.vol/FSID/FILEID without trailing /)
-    let relBegin: SystemString.Index
+    let relBegin: _SystemString.Index
     if fileidEnd < endIndex && self[fileidEnd] == ._slash {
       relBegin = index(after: fileidEnd)
     } else {
@@ -152,7 +152,7 @@ extension SystemString {
 
 // MARK: - Darwin anchor canonicalization
 
-extension SystemString {
+extension _SystemString {
   // /.resolve/1/ -> /.nofollow/
   // /.vol/NNNN/2/ -> /.vol/NNNN/@/
   internal mutating func _canonicalizeDarwinAnchor() {
@@ -202,23 +202,23 @@ extension SystemString {
 
 // MARK: - Resource fork detection
 
-extension SystemString {
+extension _SystemString {
   // The resource fork suffix is exactly "/..namedfork/rsrc" (17 bytes)
   internal static let _resourceForkSuffix: [FilePath.CodeUnit] =
     "/..namedfork/rsrc".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
 
   internal func _hasResourceForkSuffix() -> Bool {
     guard _isDarwin else { return false }
-    let suffix = SystemString._resourceForkSuffix
+    let suffix = _SystemString._resourceForkSuffix
     guard self.count >= suffix.count else { return false }
 
     let suffixStart = self.index(endIndex, offsetBy: -suffix.count)
     return self[suffixStart...].elementsEqual(suffix)
   }
 
-  internal var _resourceForkSuffixStart: SystemString.Index? {
+  internal var _resourceForkSuffixStart: _SystemString.Index? {
     guard _hasResourceForkSuffix() else { return nil }
-    let suffix = SystemString._resourceForkSuffix
+    let suffix = _SystemString._resourceForkSuffix
     return self.index(endIndex, offsetBy: -suffix.count)
   }
 }

@@ -72,7 +72,7 @@ extension FilePath {
     var chars = unsafe Array(codeUnits)
     guard !chars.contains(._null) else { return nil }
     chars.append(._null)
-    let str = SystemString(nullTerminated: chars)
+    let str = _SystemString(nullTerminated: chars)
     self.init(normalizing: str)
   }
 
@@ -106,7 +106,7 @@ extension FilePath.Component {
     guard codeUnits.count > 0 else { return nil }
     let chars = unsafe Array(codeUnits)
     guard !chars.contains(._null) else { return nil }
-    let str = SystemString(chars)
+    let str = _SystemString(chars)
     let path = FilePath(normalizing: str)
     guard path.anchor == nil else { return nil }
     let comps = path.components

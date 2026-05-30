@@ -10,7 +10,7 @@
 import Testing
 @testable import FilePath
 
-// SystemString is the null-terminated byte buffer that backs FilePath.
+// _SystemString is the null-terminated byte buffer that backs FilePath.
 // Its core invariant: storage is non-empty, the last byte is `._null`,
 // and there are no other null bytes anywhere else. The user-visible
 // length is `storage.count - 1` (the null doesn't count).
@@ -28,7 +28,7 @@ struct SystemStringTests {
   /// Asserts the null invariant: storage ends with `._null` and
   /// contains no other null bytes. Returns the user-visible bytes.
   private func _checkAndExtract(
-    _ s: SystemString,
+    _ s: _SystemString,
     _ sourceLocation: SourceLocation = #_sourceLocation
   ) -> [FilePath.CodeUnit] {
     let storage = s.nullTerminatedStorage
@@ -45,15 +45,15 @@ struct SystemStringTests {
     return Array(s)
   }
 
-  private func _make(_ bytes: [Int]) -> SystemString {
-    SystemString(bytes.map { FilePath.CodeUnit($0) })
+  private func _make(_ bytes: [Int]) -> _SystemString {
+    _SystemString(bytes.map { FilePath.CodeUnit($0) })
   }
 
   // MARK: - Initialization
 
   @Test
   func defaultInitIsEmptyButTerminated() {
-    let s = SystemString()
+    let s = _SystemString()
     #expect(_checkAndExtract(s) == [])
     #expect(s.isEmpty)
     #expect(s.count == 0)
@@ -61,7 +61,7 @@ struct SystemStringTests {
 
   @Test
   func initFromEmptyCollection() {
-    let s = SystemString([] as [FilePath.CodeUnit])
+    let s = _SystemString([] as [FilePath.CodeUnit])
     #expect(_checkAndExtract(s) == [])
   }
 
@@ -75,7 +75,7 @@ struct SystemStringTests {
 
   @Test
   func initFromBytesEndingInNullDoesntDouble() {
-    let s = SystemString(
+    let s = _SystemString(
       [FilePath.CodeUnit(0x41), FilePath.CodeUnit(0x42), ._null])
     let bytes = _checkAndExtract(s)
     #expect(bytes.map(Int.init) == [0x41, 0x42])
@@ -95,7 +95,7 @@ struct SystemStringTests {
 
   @Test
   func emptyStringEndIndexEqualsStartIndex() {
-    let s = SystemString()
+    let s = _SystemString()
     #expect(s.startIndex == s.endIndex)
     #expect(s.nullTerminatedStorage[s.endIndex] == ._null)
   }
@@ -173,7 +173,7 @@ struct SystemStringTests {
 
   @Test
   func replaceSubrangeOnEmptyString() {
-    var s = SystemString()
+    var s = _SystemString()
     s.replaceSubrange(0..<0, with: [
       FilePath.CodeUnit(0x41), FilePath.CodeUnit(0x42),
     ])
@@ -191,7 +191,7 @@ struct SystemStringTests {
 
   @Test
   func appendToEmpty() {
-    var s = SystemString()
+    var s = _SystemString()
     s.append(FilePath.CodeUnit(0x41))
     #expect(_checkAndExtract(s).map(Int.init) == [0x41])
   }
@@ -294,7 +294,7 @@ struct SystemStringTests {
 
   @Test
   func removeAllOnEmpty() {
-    var s = SystemString()
+    var s = _SystemString()
     s.removeAll()
     #expect(_checkAndExtract(s) == [])
   }

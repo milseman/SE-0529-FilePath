@@ -11,16 +11,16 @@ extension FilePath {
   /// Represents an individual component of a file path.
   public struct Component: Sendable {
     internal var _path: FilePath
-    internal var _range: Range<SystemString.Index>
+    internal var _range: Range<_SystemString.Index>
     internal var _verbatimContext: Bool
 
-    internal init(_ path: FilePath, _ range: Range<SystemString.Index>, verbatimContext: Bool = false) {
+    internal init(_ path: FilePath, _ range: Range<_SystemString.Index>, verbatimContext: Bool = false) {
       self._path = path
       self._range = range
       self._verbatimContext = verbatimContext
     }
 
-    internal var _slice: SystemString.SubSequence {
+    internal var _slice: _SystemString.SubSequence {
       _internalInvariant(_range.lowerBound >= _path._storage.startIndex)
       _internalInvariant(_range.upperBound <= _path._storage.endIndex)
       return _path._storage[_range]

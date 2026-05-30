@@ -184,7 +184,7 @@ extension FilePath {
         if hasTrailingSeparator {
           hasTrailingSeparator = false
         }
-        var suffix = SystemString._resourceForkSuffix
+        var suffix = _SystemString._resourceForkSuffix
         // Avoid double separator when path already ends with one
         if !_storage.isEmpty && isSeparator(_storage.last!)
            && !suffix.isEmpty && isSeparator(suffix.first!) {
@@ -224,7 +224,7 @@ extension FilePath {
     _ components: some Sequence<Component>,
     hasTrailingSeparator: Bool = false
   ) {
-    var str = SystemString()
+    var str = _SystemString()
 
     if let anchor = anchor {
       str.append(contentsOf: anchor._slice)

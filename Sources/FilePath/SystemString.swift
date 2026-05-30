@@ -51,12 +51,12 @@ extension FilePath.CodeUnit {
   }
 }
 
-internal struct SystemString: Sendable {
-  internal typealias Storage = [FilePath.CodeUnit]
-  internal var nullTerminatedStorage: Storage
+internal struct _SystemString: Sendable {
+  internal typealias _Storage = [FilePath.CodeUnit]
+  internal var nullTerminatedStorage: _Storage
 }
 
-extension SystemString {
+extension _SystemString {
   internal init() {
     self.nullTerminatedStorage = [._null]
     _invariantCheck()
@@ -68,13 +68,13 @@ extension SystemString {
     return len
   }
 
-  internal init(nullTerminated storage: Storage) {
+  internal init(nullTerminated storage: _Storage) {
     self.nullTerminatedStorage = storage
     _invariantCheck()
   }
 
   internal init<C: Collection>(_ chars: C) where C.Element == FilePath.CodeUnit {
-    var rawChars = Storage(chars)
+    var rawChars = _Storage(chars)
     if rawChars.last != ._null {
       rawChars.append(._null)
     }
@@ -82,7 +82,7 @@ extension SystemString {
   }
 }
 
-extension SystemString {
+extension _SystemString {
   fileprivate func _invariantsSatisfied() -> Bool {
     guard !nullTerminatedStorage.isEmpty else { return false }
     guard nullTerminatedStorage.last! == ._null else { return false }
@@ -99,9 +99,9 @@ extension SystemString {
   }
 }
 
-extension SystemString: RandomAccessCollection, MutableCollection {
+extension _SystemString: RandomAccessCollection, MutableCollection {
   internal typealias Element = FilePath.CodeUnit
-  internal typealias Index = Storage.Index
+  internal typealias Index = _Storage.Index
   internal typealias Indices = Range<Index>
 
   internal var startIndex: Index {
@@ -124,7 +124,7 @@ extension SystemString: RandomAccessCollection, MutableCollection {
     }
   }
 }
-extension SystemString: RangeReplaceableCollection {
+extension _SystemString: RangeReplaceableCollection {
   internal mutating func replaceSubrange<C: Collection>(
     _ subrange: Range<Index>, with newElements: C
   ) where C.Element == FilePath.CodeUnit {
@@ -158,10 +158,10 @@ extension SystemString: RangeReplaceableCollection {
   }
 }
 
-extension SystemString: Hashable {}
+extension _SystemString: Hashable {}
 
-extension SystemString {
-  // Storage backing — includes the trailing null byte.
+extension _SystemString {
+  // _Storage backing — includes the trailing null byte.
   internal func withNullTerminatedCodeUnits<T>(
     _ f: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
@@ -179,7 +179,7 @@ extension SystemString {
   }
 }
 
-extension Slice<SystemString> {
+extension Slice<_SystemString> {
   internal func withCodeUnits<T>(
     _ f: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
@@ -193,14 +193,14 @@ extension Slice<SystemString> {
 }
 
 extension String {
-  internal init?(validating str: SystemString) {
+  internal init?(validating str: _SystemString) {
     let decoded = str.string
-    guard SystemString(decoded) == str else { return nil }
+    guard _SystemString(decoded) == str else { return nil }
     self = decoded
   }
 }
 
-extension SystemString: ExpressibleByStringLiteral {
+extension _SystemString: ExpressibleByStringLiteral {
   internal init(stringLiteral: String) {
     self.init(stringLiteral)
   }
@@ -216,7 +216,7 @@ extension SystemString: ExpressibleByStringLiteral {
   }
 }
 
-extension SystemString: CustomStringConvertible, CustomDebugStringConvertible {
+extension _SystemString: CustomStringConvertible, CustomDebugStringConvertible {
   internal var string: String {
     unsafe self.withCodeUnits { codeUnits in
       unsafe codeUnits.withMemoryRebound(to: FilePath._Encoding.CodeUnit.self) {

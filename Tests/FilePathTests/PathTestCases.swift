@@ -1680,34 +1680,40 @@ let pathTestCases: [PathTestCase] = [
             printed: #"\foo\..namedfork\rsrc\extra"#, isAbsolute: false, isRooted: true)
     ),
 
-    // MARK: - Darwin verbatim match failures (double slashes)
+    // MARK: - Darwin double separators within anchor structures
     //
-    // Darwin prefix/suffix matching is byte-exact. Double slashes within
-    // the matched structure break recognition. The path falls through to
-    // regular parsing where ComponentView coalesces the separators.
+    // FilePath coalesces repeated separators and decomposes the coalesced
+    // form; the only input it rejects (returns nil) is one containing NUL.
+    // For .vol, the coalesced form yields the normal volfs anchor. The
+    // .resolve and resource-fork cases further below remain flagged as known
+    // issues pending a parser-vs-proposal decision (see README open questions).
 
-    // Double slash after .vol: first ID is empty, not volfs
+    // Double slash after .vol coalesces to /.vol/1234/5678 (volfs anchor)
     PathTestCase(
         input: "/.vol//1234/5678",
-        unix: Expected(
+        linux: Expected(
             anchor: "/", components: [".vol", "1234", "5678"],
+            printed: "/.vol/1234/5678", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.vol/1234/5678", components: [],
             printed: "/.vol/1234/5678", isAbsolute: true),
         windows: Expected(
             anchor: #"\"#, components: [".vol", "1234", "5678"],
-            printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true),
-        knownDarwinIssue: true
+            printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true)
     ),
 
-    // Double slash between vol IDs: second ID is empty, not volfs
+    // Double slash between vol IDs coalesces to /.vol/1234/5678 (volfs anchor)
     PathTestCase(
         input: "/.vol/1234//5678",
-        unix: Expected(
+        linux: Expected(
             anchor: "/", components: [".vol", "1234", "5678"],
+            printed: "/.vol/1234/5678", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.vol/1234/5678", components: [],
             printed: "/.vol/1234/5678", isAbsolute: true),
         windows: Expected(
             anchor: #"\"#, components: [".vol", "1234", "5678"],
-            printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true),
-        knownDarwinIssue: true
+            printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true)
     ),
 
     // Double slash within resource fork suffix: verbatim match fails
@@ -2060,15 +2066,32 @@ let pathTestCases: [PathTestCase] = [
             kinds: [.parentDirectory])
     ),
 
-    // MARK: - Windows non-letter drive (invalid)
+    // MARK: - Windows non-letter drive
 
-    // Digit is not a valid drive letter: "1:" is a component, "\" is separator
+    // A drive letter is any single non-separator code unit followed by a
+    // colon (matching RtlDetermineDosPathNameType_U, which keys on the
+    // second character being a colon and does not validate the first).
+    // A digit is a valid drive letter: "1:\foo" is drive-absolute.
     PathTestCase(
         input: #"1:\foo"#,
         unix: .singleComponent(#"1:\foo"#),
         windows: Expected(
-            anchor: nil, components: ["1:", "foo"],
-            printed: #"1:\foo"#, isAbsolute: false)
+            anchor: #"1:\"#, components: ["foo"],
+            printed: #"1:\foo"#, isAbsolute: true, driveLetter: "1")
+    ),
+
+    // A colon is itself a non-separator, so "::foo" parses as drive ":"
+    // (the documented basis for the "=::" environment variable Windows
+    // creates). Like "C:foo", it is drive-relative: not rooted, not
+    // absolute.
+    PathTestCase(
+        input: "::foo",
+        unix: Expected(
+            anchor: nil, components: ["::foo"],
+            printed: "::foo", isAbsolute: false),
+        windows: Expected(
+            anchor: "::", components: ["foo"],
+            printed: "::foo", isAbsolute: false, driveLetter: ":")
     ),
 
     // MARK: - Trailing sep on deeper paths

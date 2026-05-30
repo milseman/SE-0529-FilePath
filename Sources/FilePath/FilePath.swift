@@ -10,14 +10,14 @@
 /// A file path is a null-terminated sequence of bytes that represents
 /// a location in the file system.
 public struct FilePath: Sendable {
-  internal var _storage: SystemString
+  internal var _storage: _SystemString
 
   /// Creates an empty file path.
   public init() {
-    self._storage = SystemString()
+    self._storage = _SystemString()
   }
 
-  internal init(_storage: SystemString) {
+  internal init(_storage: _SystemString) {
     self._storage = _storage
   }
 
@@ -27,7 +27,7 @@ public struct FilePath: Sendable {
   // raw bytes (verbatim), normalize only the relative portion, then
   // reassemble. This ensures double slashes inside anchor structures
   // or resource fork suffixes cause the match to fail correctly.
-  internal init(normalizing str: SystemString) {
+  internal init(normalizing str: _SystemString) {
     if _isDarwin {
       self = Self._normalizeDarwin(str)
     } else if _isWindows {
@@ -37,7 +37,7 @@ public struct FilePath: Sendable {
     }
   }
 
-  private static func _normalizeLinux(_ str: SystemString) -> FilePath {
+  private static func _normalizeLinux(_ str: _SystemString) -> FilePath {
     var s = str
     s._normalizeSeparators()
     let (rootEnd, _) = s._parseRoot()
@@ -46,7 +46,7 @@ public struct FilePath: Sendable {
     return FilePath(_storage: s)
   }
 
-  private static func _normalizeWindows(_ str: SystemString) -> FilePath {
+  private static func _normalizeWindows(_ str: _SystemString) -> FilePath {
     var s = str
     s._normalizeSeparators()
     let isVerbatim = _isVerbatimComponentPath(s)
@@ -69,7 +69,7 @@ public struct FilePath: Sendable {
     return FilePath(_storage: s)
   }
 
-  private static func _normalizeDarwin(_ str: SystemString) -> FilePath {
+  private static func _normalizeDarwin(_ str: _SystemString) -> FilePath {
     var raw = str
     raw._canonicalizeDarwinAnchor()
 
@@ -95,7 +95,7 @@ public struct FilePath: Sendable {
     }
 
     // Normalize the relative portion only
-    var relative = SystemString(relativeChars)
+    var relative = _SystemString(relativeChars)
     relative._normalizeSeparators()
     relative._normalizeDots(isVerbatimComponent: false, isRooted: hasAnchor)
 
@@ -106,7 +106,7 @@ public struct FilePath: Sendable {
     }
 
     // Reassemble: anchor + gap + relative + suffix
-    var result = SystemString()
+    var result = _SystemString()
     result.append(contentsOf: anchorSlice)
     result.append(contentsOf: gapSlice)
     if !relative.isEmpty && gapSlice.isEmpty && hasAnchor {
@@ -135,7 +135,7 @@ public struct FilePath: Sendable {
 }
 
 // Check if a path is a verbatim-component Windows path
-internal func _isVerbatimComponentPath(_ storage: SystemString) -> Bool {
+internal func _isVerbatimComponentPath(_ storage: _SystemString) -> Bool {
   guard _isWindows else { return false }
   guard let parsed = storage._parseWindowsRootInternal() else { return false }
   return parsed.isVerbatimComponent

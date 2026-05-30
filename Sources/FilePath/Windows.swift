@@ -10,8 +10,8 @@
 // MARK: - Parsed Windows root
 
 internal struct _ParsedWindowsRoot {
-  var rootEnd: SystemString.Index
-  var relativeBegin: SystemString.Index
+  var rootEnd: _SystemString.Index
+  var relativeBegin: _SystemString.Index
   var drive: FilePath.CodeUnit?
   var deviceSigil: FilePath.CodeUnit?
 }
@@ -19,7 +19,7 @@ internal struct _ParsedWindowsRoot {
 extension _ParsedWindowsRoot {
   static func traditional(
     drive: FilePath.CodeUnit?,
-    endingAt idx: SystemString.Index
+    endingAt idx: _SystemString.Index
   ) -> _ParsedWindowsRoot {
     _ParsedWindowsRoot(
       rootEnd: idx,
@@ -30,8 +30,8 @@ extension _ParsedWindowsRoot {
 
   static func unc(
     deviceSigil: FilePath.CodeUnit?,
-    endingAt end: SystemString.Index,
-    relativeBegin relBegin: SystemString.Index
+    endingAt end: _SystemString.Index,
+    relativeBegin relBegin: _SystemString.Index
   ) -> _ParsedWindowsRoot {
     _ParsedWindowsRoot(
       rootEnd: end,
@@ -43,8 +43,8 @@ extension _ParsedWindowsRoot {
   static func device(
     deviceSigil: FilePath.CodeUnit,
     drive: FilePath.CodeUnit?,
-    endingAt end: SystemString.Index,
-    relativeBegin relBegin: SystemString.Index
+    endingAt end: _SystemString.Index,
+    relativeBegin relBegin: _SystemString.Index
   ) -> _ParsedWindowsRoot {
     _ParsedWindowsRoot(
       rootEnd: end,
@@ -61,9 +61,9 @@ extension _ParsedWindowsRoot {
 // MARK: - Lexer
 
 struct _Lexer {
-  var slice: Slice<SystemString>
+  var slice: Slice<_SystemString>
 
-  init(_ str: SystemString) {
+  init(_ str: _SystemString) {
     self.slice = str[...]
   }
 
@@ -73,9 +73,22 @@ struct _Lexer {
     slice._eat(._backslash) != nil
   }
 
+  // A drive letter is any single non-separator code unit immediately
+  // followed by a colon. This matches Windows' own
+  // RtlDetermineDosPathNameType_U, which keys on the second character
+  // being a colon and does not validate the first: `1:`, `::`, etc. are
+  // all drives. (A colon is itself a non-separator, so `::foo` parses as
+  // drive `:` — the documented basis for the `=::` environment variable
+  // Windows creates.)
+  //
+  // The non-separator requirement is what keeps leading-separator paths
+  // out: `\:x` (and `/:x`, which `_normalizeSeparators` has already
+  // rewritten to `\:x` by this point) are classified as rooted/UNC, not
+  // drives. Because `/`→`\` conversion has already run, `isSeparator`
+  // — which tests `\` only — is exactly the right predicate here.
   mutating func eatDrive() -> FilePath.CodeUnit? {
     let copy = slice
-    if let d = slice._eat(if: { $0._isLetter }),
+    if let d = slice._eat(if: { !isSeparator($0) }),
        slice._eat(._colon) != nil {
       return d
     }
@@ -101,7 +114,7 @@ struct _Lexer {
     ) != nil
   }
 
-  mutating func eatComponent() -> Range<SystemString.Index> {
+  mutating func eatComponent() -> Range<_SystemString.Index> {
     let backslash = self.backslash
     let component = slice._eatWhile({ $0 != backslash })
       ?? slice[slice.startIndex ..< slice.startIndex]
@@ -112,20 +125,20 @@ struct _Lexer {
     return slice.isEmpty
   }
 
-  var current: SystemString.Index { slice.startIndex }
+  var current: _SystemString.Index { slice.startIndex }
 
   mutating func clear() {
-    self = _Lexer(SystemString())
+    self = _Lexer(_SystemString())
   }
 
-  mutating func reset(to str: SystemString, at idx: SystemString.Index) {
+  mutating func reset(to str: _SystemString, at idx: _SystemString.Index) {
     self.slice = str[idx...]
   }
 }
 
 // MARK: - Verbatim prefix detection (pre-normalization)
 
-extension SystemString {
+extension _SystemString {
   // Check if this string starts with the exact verbatim prefix \\?\
   // (four backslashes — no forward slashes). Returns the index past
   // the prefix, or nil.
@@ -202,7 +215,7 @@ extension SystemString {
 
 // MARK: - Windows root parsing
 
-extension SystemString {
+extension _SystemString {
   internal func _parseWindowsRootInternal() -> _ParsedWindowsRoot? {
     _internalInvariant(_isWindows)
 
@@ -304,8 +317,8 @@ extension SystemString {
   }
 
   internal func _parseWindowsRoot() -> (
-    rootEnd: SystemString.Index,
-    relativeBegin: SystemString.Index
+    rootEnd: _SystemString.Index,
+    relativeBegin: _SystemString.Index
   ) {
     guard let parsed = _parseWindowsRootInternal() else {
       return (startIndex, startIndex)
@@ -316,7 +329,7 @@ extension SystemString {
 
 // MARK: - Windows root prenormalization
 
-extension SystemString {
+extension _SystemString {
   internal mutating func _prenormalizeWindowsRoots() -> Index {
     _internalInvariant(_isWindows)
 

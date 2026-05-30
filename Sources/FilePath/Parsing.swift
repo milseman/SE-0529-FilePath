@@ -73,7 +73,7 @@ internal func _anchorNeedsGapSeparator(
 
 // MARK: - Root parsing
 
-extension SystemString {
+extension _SystemString {
   internal func _parseRoot() -> (
     rootEnd: Index, relativeBegin: Index
   ) {
@@ -103,7 +103,7 @@ extension SystemString {
 
 // MARK: - Separator normalization
 
-extension SystemString {
+extension _SystemString {
   // Normalize separators: coalesce repeated seps.
   // On Windows, convert / to \ and prenormalize roots.
   // Does NOT remove trailing separators (new behavior).
@@ -152,7 +152,7 @@ extension SystemString {
 
 // MARK: - Dot normalization (new rules for SE-0529)
 
-extension SystemString {
+extension _SystemString {
   // Drop interior `.` components per the proposal rules:
   // - `.` is dropped unless it is the first component of a non-rooted path
   // - Trailing `.` becomes trailing separator (foo/. -> foo/)
@@ -235,6 +235,6 @@ extension SystemString {
       result.append(platformSeparator)
     }
 
-    self = SystemString(result)
+    self = _SystemString(result)
   }
 }

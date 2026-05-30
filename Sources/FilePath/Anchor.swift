@@ -12,14 +12,14 @@ extension FilePath {
   /// and precedes any components.
   public struct Anchor: Sendable {
     internal var _path: FilePath
-    internal var _end: SystemString.Index
+    internal var _end: _SystemString.Index
 
-    internal init(_ path: FilePath, end: SystemString.Index) {
+    internal init(_ path: FilePath, end: _SystemString.Index) {
       self._path = path
       self._end = end
     }
 
-    internal var _slice: SystemString.SubSequence {
+    internal var _slice: _SystemString.SubSequence {
       _internalInvariant(_end >= _path._storage.startIndex && _end <= _path._storage.endIndex)
       return _path._storage[_path._storage.startIndex..<_end]
     }
