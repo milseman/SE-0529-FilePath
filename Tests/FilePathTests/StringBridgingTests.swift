@@ -161,31 +161,17 @@ extension AllTests.StringBridgingTests {
       expectTrue(String(decoding: c).unicodeScalars.contains("\u{FFFD}"),
         "String(decoding:) yields U+FFFD for ill-formed Component")
 
-      // FINDING (proposal vs. implementation):
-      // SE-0529 (lines 771-776) specifies `String?(validating: component)` returns
-      // `nil` when the component's content is not well-formed Unicode. The
-      // reference implementation instead returns the lossy U+FFFD description and
-      // never fails (StringBridging.swift:
-      //   `init?(validating component:) { self = component.description }`).
-      // The SAME one-line impl backs `String?(validating: anchor)`, so the anchor
-      // overload carries the identical latent divergence; it is not directly
-      // exercisable here because Anchor has no public codeUnits initializer to
-      // smuggle ill-formed bytes into the (otherwise structural/ASCII) anchor
-      // region.
+      // SE-0529 (lines 771-776): String?(validating: component) returns nil when
+      // the content is not well-formed Unicode. Fixed in StringBridging.swift to
+      // use the decode/re-encode/compare round-trip (matching the FilePath
+      // overload) instead of the lossy U+FFFD description.
       //
-      // Per the task contract this is recorded as a finding, NOT fixed in source
-      // and NOT weakened: the proposal-derived assertion below is kept verbatim
-      // and quarantined as a known issue (the repo's existing convention for
-      // proposal-vs-impl divergences). If the impl is corrected, the known-issue
-      // wrapper will start failing ("expected issue not recorded"), flagging this
-      // for removal.
-      expectKnownIssue(
-        "String(validating: Component) should be nil for ill-formed Unicode "
-        + "(SE-0529 lines 771-776); impl returns the U+FFFD description"
-      ) {
-        expectNil(String(validating: c),
-          "String(validating:) should be nil for ill-formed Component")
-      }
+      // The Anchor overload (lines 757-762) received the identical fix for
+      // symmetry but is not directly test-reachable: Anchor has no public
+      // codeUnits initializer to smuggle ill-formed bytes into the (otherwise
+      // structural/ASCII) anchor region.
+      expectNil(String(validating: c),
+        "String(validating:) should be nil for ill-formed Component")
     }
   }
 #endif

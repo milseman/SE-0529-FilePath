@@ -90,7 +90,14 @@ extension String {
 
   @available(SwiftStdlib 9999, *)
   public init?(validating anchor: FilePath.Anchor) {
-    self = anchor.description
+    // Mirror the FilePath overload: decode, re-encode, and compare (via
+    // String(validating: _SystemString)), so ill-formed content yields nil
+    // instead of a lossy U+FFFD decode. Not directly reachable by a test —
+    // Anchor has no public codeUnits init to inject ill-formed bytes.
+    guard let str = String(validating: _SystemString(anchor._slice)) else {
+      return nil
+    }
+    self = str
   }
 
   @available(SwiftStdlib 9999, *)
@@ -100,7 +107,13 @@ extension String {
 
   @available(SwiftStdlib 9999, *)
   public init?(validating component: FilePath.Component) {
-    self = component.description
+    // Mirror the FilePath overload: decode, re-encode, and compare (via
+    // String(validating: _SystemString)), so ill-formed content yields nil
+    // instead of a lossy U+FFFD decode.
+    guard let str = String(validating: _SystemString(component._slice)) else {
+      return nil
+    }
+    self = str
   }
 }
 

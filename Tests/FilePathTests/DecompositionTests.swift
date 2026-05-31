@@ -12,84 +12,88 @@ import Testing
 
 extension AllTests.DecompositionTests {
 
+  // Migrated onto the TestSupport seam: assertions go through the `expect*`
+  // helpers, the platform is set via `withPlatform`, and the per-case known
+  // issue uses `expectKnownIssue`. Behavior is identical to the prior
+  // `#expect`/`withKnownIssue`/direct-global version.
   func runCase(_ tc: PathTestCase, platform: REVIEW_ONLY_Platform) {
-    FilePath.REVIEW_ONLY_platform = platform
+    withPlatform(platform) {
+      let expected: Expected
+      switch platform {
+      case .linux: expected = tc.linux
+      case .darwin: expected = tc.darwin
+      case .windows: expected = tc.windows
+      }
 
-    let expected: Expected
-    switch platform {
-    case .linux: expected = tc.linux
-    case .darwin: expected = tc.darwin
-    case .windows: expected = tc.windows
+      let path = FilePath(tc.input)!
+
+      // anchor
+      let anchorDesc = path.anchor?.description
+      expectEqual(anchorDesc, expected.anchor,
+        "[\(platform)] input=\(tc.input.debugDescription) anchor: got \(anchorDesc.debugDescription), expected \(expected.anchor.debugDescription)")
+
+      // components
+      let compDescs = path.components.map(\.description)
+      expectEqual(compDescs, expected.components,
+        "[\(platform)] input=\(tc.input.debugDescription) components: got \(compDescs), expected \(expected.components)")
+
+      // hasTrailingSeparator
+      expectEqual(path.hasTrailingSeparator, expected.hasTrailingSeparator,
+        "[\(platform)] input=\(tc.input.debugDescription) hasTrailingSep: got \(path.hasTrailingSeparator), expected \(expected.hasTrailingSeparator)")
+
+      // isResourceFork (Darwin)
+      if platform == .darwin {
+        expectEqual(path.isResourceFork, expected.isResourceFork,
+          "[\(platform)] input=\(tc.input.debugDescription) isResourceFork: got \(path.isResourceFork), expected \(expected.isResourceFork)")
+      }
+
+      // printed
+      expectEqual(path.description, expected.printed,
+        "[\(platform)] input=\(tc.input.debugDescription) printed: got \(path.description.debugDescription), expected \(expected.printed.debugDescription)")
+
+      // isAbsolute
+      expectEqual(path.isAbsolute, expected.isAbsolute,
+        "[\(platform)] input=\(tc.input.debugDescription) isAbsolute: got \(path.isAbsolute), expected \(expected.isAbsolute)")
+
+      // isRooted
+      let expectedRooted = expected.isRooted ?? expected.isAbsolute
+      let actualRooted = path.anchor?.isRooted ?? false
+      expectEqual(actualRooted, expectedRooted,
+        "[\(platform)] input=\(tc.input.debugDescription) isRooted: got \(actualRooted), expected \(expectedRooted)")
+
+      // driveLetter
+      if let expectedDrive = expected.driveLetter {
+        expectTrue(path.anchor?.driveLetter == expectedDrive,
+          "[\(platform)] input=\(tc.input.debugDescription) driveLetter: got \(path.anchor?.driveLetter.debugDescription ?? "nil"), expected \(expectedDrive)")
+      }
+
+      // kinds
+      let actualKinds = path.components.map(\.kind)
+      if let expectedKinds = expected.kinds {
+        expectEqual(actualKinds, expectedKinds,
+          "[\(platform)] input=\(tc.input.debugDescription) kinds: got \(actualKinds), expected \(expectedKinds)")
+      } else {
+        let allRegular = actualKinds.allSatisfy { $0 == .regular }
+        expectTrue(allRegular,
+          "[\(platform)] input=\(tc.input.debugDescription) kinds: expected all .regular, got \(actualKinds)")
+      }
+
+      // Round-trip: reconstruct from decomposition
+      let roundTrip: FilePath
+      if expected.isResourceFork {
+        roundTrip = FilePath(
+          anchor: path.anchor,
+          path.components,
+          resourceFork: true)
+      } else {
+        roundTrip = FilePath(
+          anchor: path.anchor,
+          path.components,
+          hasTrailingSeparator: path.hasTrailingSeparator)
+      }
+      expectEqual(roundTrip, path,
+        "[\(platform)] input=\(tc.input.debugDescription) round-trip failed: got \(roundTrip.description.debugDescription), expected \(path.description.debugDescription)")
     }
-
-    let path = FilePath(tc.input)!
-
-    // anchor
-    let anchorDesc = path.anchor?.description
-    #expect(anchorDesc == expected.anchor,
-      "[\(platform)] input=\(tc.input.debugDescription) anchor: got \(anchorDesc.debugDescription), expected \(expected.anchor.debugDescription)")
-
-    // components
-    let compDescs = path.components.map(\.description)
-    #expect(compDescs == expected.components,
-      "[\(platform)] input=\(tc.input.debugDescription) components: got \(compDescs), expected \(expected.components)")
-
-    // hasTrailingSeparator
-    #expect(path.hasTrailingSeparator == expected.hasTrailingSeparator,
-      "[\(platform)] input=\(tc.input.debugDescription) hasTrailingSep: got \(path.hasTrailingSeparator), expected \(expected.hasTrailingSeparator)")
-
-    // isResourceFork (Darwin)
-    if platform == .darwin {
-      #expect(path.isResourceFork == expected.isResourceFork,
-        "[\(platform)] input=\(tc.input.debugDescription) isResourceFork: got \(path.isResourceFork), expected \(expected.isResourceFork)")
-    }
-
-    // printed
-    #expect(path.description == expected.printed,
-      "[\(platform)] input=\(tc.input.debugDescription) printed: got \(path.description.debugDescription), expected \(expected.printed.debugDescription)")
-
-    // isAbsolute
-    #expect(path.isAbsolute == expected.isAbsolute,
-      "[\(platform)] input=\(tc.input.debugDescription) isAbsolute: got \(path.isAbsolute), expected \(expected.isAbsolute)")
-
-    // isRooted
-    let expectedRooted = expected.isRooted ?? expected.isAbsolute
-    let actualRooted = path.anchor?.isRooted ?? false
-    #expect(actualRooted == expectedRooted,
-      "[\(platform)] input=\(tc.input.debugDescription) isRooted: got \(actualRooted), expected \(expectedRooted)")
-
-    // driveLetter
-    if let expectedDrive = expected.driveLetter {
-      #expect(path.anchor?.driveLetter == expectedDrive,
-        "[\(platform)] input=\(tc.input.debugDescription) driveLetter: got \(path.anchor?.driveLetter.debugDescription ?? "nil"), expected \(expectedDrive)")
-    }
-
-    // kinds
-    let actualKinds = path.components.map(\.kind)
-    if let expectedKinds = expected.kinds {
-      #expect(actualKinds == expectedKinds,
-        "[\(platform)] input=\(tc.input.debugDescription) kinds: got \(actualKinds), expected \(expectedKinds)")
-    } else {
-      let allRegular = actualKinds.allSatisfy { $0 == .regular }
-      #expect(allRegular,
-        "[\(platform)] input=\(tc.input.debugDescription) kinds: expected all .regular, got \(actualKinds)")
-    }
-
-    // Round-trip: reconstruct from decomposition
-    let roundTrip: FilePath
-    if expected.isResourceFork {
-      roundTrip = FilePath(
-        anchor: path.anchor,
-        path.components,
-        resourceFork: true)
-    } else {
-      roundTrip = FilePath(
-        anchor: path.anchor,
-        path.components,
-        hasTrailingSeparator: path.hasTrailingSeparator)
-    }
-    #expect(roundTrip == path,
-      "[\(platform)] input=\(tc.input.debugDescription) round-trip failed: got \(roundTrip.description.debugDescription), expected \(path.description.debugDescription)")
   }
 
   @Test
@@ -103,7 +107,7 @@ extension AllTests.DecompositionTests {
   func allCasesDarwin() {
     for tc in pathTestCases {
       if tc.knownDarwinIssue {
-        withKnownIssue("double-slash-within-anchor-structure") {
+        expectKnownIssue("double-slash-within-anchor-structure") {
           runCase(tc, platform: .darwin)
         }
       } else {

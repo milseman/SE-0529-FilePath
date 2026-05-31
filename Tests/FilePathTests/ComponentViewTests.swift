@@ -10,6 +10,16 @@
 import Testing
 @testable import FilePath
 
+// NOT migrated onto the TestSupport seam (intentional). This file has ~102
+// tests / ~239 `#expect` sites / ~104 inline platform-sets; a by-hand migration
+// is high-churn and high-regression-risk for an optional refactor that changes
+// no behavior, so per "leave awkward spots and note them" it is left as-is. The
+// seam is already proven on the table-driven path (DecompositionTests) and
+// across all three platforms (ValidationTests), plus the new Equality /
+// StringBridging / Reconstruction suites. When this file is eventually migrated,
+// `makePath`/`printed` (which take a `platform:` argument and return a value for
+// use outside any closure) are the spots to rework first.
+
 extension AllTests.ComponentViewTests {
 
   // MARK: - Helpers

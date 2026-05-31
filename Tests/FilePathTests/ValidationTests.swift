@@ -10,6 +10,16 @@
 import Testing
 @testable import FilePath
 
+// Migrated onto the TestSupport seam: assertions go through the `expect*`
+// helpers and the platform is set via `withPlatform`. Tests that never set a
+// platform (NUL/empty rejection, typed-error throwing) are platform-independent
+// and are left unwrapped, exactly as before.
+//
+// SEAM EXCEPTION: `withCodeUnitsThrowsTypedError` keeps `#expect(throws:)`. The
+// seam has no throwing-assertion helper (it was not in scope and its analogue
+// differs sharply across StdlibUnittest / XCTest), so per "leave awkward spots
+// and note them" it is intentionally not migrated.
+
 extension AllTests.ValidationTests {
 
   // MARK: - Helpers
@@ -34,85 +44,90 @@ extension AllTests.ValidationTests {
 
   @Test
   func filePathInitRejectsNUL() {
+    // Platform-independent: NUL is rejected before normalization.
     let good: String = "hello"
-    #expect(FilePath(good) != nil)
+    expectNotNil(FilePath(good))
 
     let empty: String = ""
-    #expect(FilePath(empty) != nil)
+    expectNotNil(FilePath(empty))
 
     let abs: String = "/foo/bar"
-    #expect(FilePath(abs) != nil)
+    expectNotNil(FilePath(abs))
 
     let nulMiddle: String = "hello\0world"
-    #expect(FilePath(nulMiddle) == nil)
+    expectNil(FilePath(nulMiddle))
 
     let justNul: String = "\0"
-    #expect(FilePath(justNul) == nil)
+    expectNil(FilePath(justNul))
 
     let nulEnd: String = "foo\0"
-    #expect(FilePath(nulEnd) == nil)
+    expectNil(FilePath(nulEnd))
 
     let nulStart: String = "\0foo"
-    #expect(FilePath(nulStart) == nil)
+    expectNil(FilePath(nulStart))
   }
 
   @Test
   func filePathStringLiteralWorks() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let p: FilePath = "/usr/local/bin"
-    #expect(p.description == "/usr/local/bin")
+    withPlatform(.linux) {
+      let p: FilePath = "/usr/local/bin"
+      expectEqual(p.description, "/usr/local/bin")
 
-    let empty: FilePath = ""
-    #expect(empty.isEmpty)
+      let empty: FilePath = ""
+      expectTrue(empty.isEmpty)
+    }
   }
 
   // MARK: - FilePath.init?(codeUnits:) and round-trip via withCodeUnits
 
   @Test
   func filePathCodeUnitsRejectsNUL() {
-    FilePath.REVIEW_ONLY_platform = .linux
-
-    #expect(filePathFromCodeUnits(codeUnits("/foo"))?.description == "/foo")
-    #expect(filePathFromCodeUnits(codeUnits("f\0o")) == nil)
-    #expect(filePathFromCodeUnits(codeUnits("\0")) == nil)
-    #expect(filePathFromCodeUnits(codeUnits("foo\0")) == nil)
+    withPlatform(.linux) {
+      expectTrue(filePathFromCodeUnits(codeUnits("/foo"))?.description == "/foo")
+      expectNil(filePathFromCodeUnits(codeUnits("f\0o")))
+      expectNil(filePathFromCodeUnits(codeUnits("\0")))
+      expectNil(filePathFromCodeUnits(codeUnits("foo\0")))
+    }
   }
 
   @Test
   func filePathCodeUnitsEmpty() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let emptyPath = filePathFromCodeUnits([])
-    #expect(emptyPath != nil)
-    #expect(emptyPath?.isEmpty == true)
+    withPlatform(.linux) {
+      let emptyPath = filePathFromCodeUnits([])
+      expectNotNil(emptyPath)
+      expectTrue(emptyPath?.isEmpty == true)
+    }
   }
 
   @Test
   func filePathCodeUnitRoundTrip() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    for input in ["/foo/bar", "", ".", "foo/bar", "/usr/local/bin", "hello"] {
-      let s: String = input
-      let path = FilePath(s)!
-      let extracted = path.withCodeUnits { ptr, count in
-        Array(UnsafeBufferPointer(start: ptr, count: count))
+    withPlatform(.linux) {
+      for input in ["/foo/bar", "", ".", "foo/bar", "/usr/local/bin", "hello"] {
+        let s: String = input
+        let path = FilePath(s)!
+        let extracted = path.withCodeUnits { ptr, count in
+          Array(UnsafeBufferPointer(start: ptr, count: count))
+        }
+        let roundTripped = filePathFromCodeUnits(extracted)
+        expectTrue(roundTripped == path,
+          "Code unit round-trip failed for \(input.debugDescription)")
       }
-      let roundTripped = filePathFromCodeUnits(extracted)
-      #expect(roundTripped == path,
-        "Code unit round-trip failed for \(input.debugDescription)")
     }
   }
 
   @Test
   func filePathCodeUnitRoundTripNonASCII() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    for input in ["/café/naïve", "/あ/🧟‍♀️", "Ångström"] {
-      let s: String = input
-      let path = FilePath(s)!
-      let extracted = path.withCodeUnits { ptr, count in
-        Array(UnsafeBufferPointer(start: ptr, count: count))
+    withPlatform(.linux) {
+      for input in ["/café/naïve", "/あ/🧟‍♀️", "Ångström"] {
+        let s: String = input
+        let path = FilePath(s)!
+        let extracted = path.withCodeUnits { ptr, count in
+          Array(UnsafeBufferPointer(start: ptr, count: count))
+        }
+        let roundTripped = filePathFromCodeUnits(extracted)
+        expectTrue(roundTripped == path,
+          "Non-ASCII code unit round-trip failed for \(input.debugDescription)")
       }
-      let roundTripped = filePathFromCodeUnits(extracted)
-      #expect(roundTripped == path,
-        "Non-ASCII code unit round-trip failed for \(input.debugDescription)")
     }
   }
 
@@ -120,104 +135,110 @@ extension AllTests.ValidationTests {
 
   @Test
   func componentInitRejectsNUL() {
+    // Platform-independent.
     let good: String = "hello"
-    #expect(FilePath.Component(good) != nil)
+    expectNotNil(FilePath.Component(good))
 
     let nul: String = "hello\0world"
-    #expect(FilePath.Component(nul) == nil)
+    expectNil(FilePath.Component(nul))
 
     let justNul: String = "\0"
-    #expect(FilePath.Component(justNul) == nil)
+    expectNil(FilePath.Component(justNul))
   }
 
   @Test
   func componentInitRejectsSeparator() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let fwdSlash: String = "foo/bar"
-    #expect(FilePath.Component(fwdSlash) == nil)
-    let justSlash: String = "/"
-    #expect(FilePath.Component(justSlash) == nil)
-    let trailingSlash: String = "a/"
-    #expect(FilePath.Component(trailingSlash) == nil)
+    withPlatform(.linux) {
+      let fwdSlash: String = "foo/bar"
+      expectNil(FilePath.Component(fwdSlash))
+      let justSlash: String = "/"
+      expectNil(FilePath.Component(justSlash))
+      let trailingSlash: String = "a/"
+      expectNil(FilePath.Component(trailingSlash))
 
-    // Backslash is legal in filenames on Linux
-    let bsOnLinux: String = #"foo\bar"#
-    let bs = FilePath.Component(bsOnLinux)
-    #expect(bs != nil)
-    #expect(bs?.description == #"foo\bar"#)
+      // Backslash is legal in filenames on Linux
+      let bsOnLinux: String = #"foo\bar"#
+      let bs = FilePath.Component(bsOnLinux)
+      expectNotNil(bs)
+      expectTrue(bs?.description == #"foo\bar"#)
+    }
 
-    FilePath.REVIEW_ONLY_platform = .windows
-    let backslash: String = #"foo\bar"#
-    #expect(FilePath.Component(backslash) == nil)
-    let justBack: String = #"\"#
-    #expect(FilePath.Component(justBack) == nil)
-    let fwdOnWin: String = "foo/bar"
-    #expect(FilePath.Component(fwdOnWin) == nil)
+    withPlatform(.windows) {
+      let backslash: String = #"foo\bar"#
+      expectNil(FilePath.Component(backslash))
+      let justBack: String = #"\"#
+      expectNil(FilePath.Component(justBack))
+      let fwdOnWin: String = "foo/bar"
+      expectNil(FilePath.Component(fwdOnWin))
+    }
   }
 
   @Test
   func componentInitRejectsEmpty() {
     let empty: String = ""
-    #expect(FilePath.Component(empty) == nil)
+    expectNil(FilePath.Component(empty))
   }
 
   @Test
   func componentInitAcceptsValid() {
-    FilePath.REVIEW_ONLY_platform = .linux
+    withPlatform(.linux) {
+      let hello: String = "hello"
+      let c = FilePath.Component(hello)
+      expectNotNil(c)
+      expectTrue(c?.description == "hello")
 
-    let hello: String = "hello"
-    let c = FilePath.Component(hello)
-    #expect(c != nil)
-    #expect(c?.description == "hello")
+      let dotStr: String = "."
+      let dot = FilePath.Component(dotStr)
+      expectNotNil(dot)
+      expectTrue(dot?.kind == .currentDirectory)
 
-    let dotStr: String = "."
-    let dot = FilePath.Component(dotStr)
-    #expect(dot != nil)
-    #expect(dot?.kind == .currentDirectory)
-
-    let dotdotStr: String = ".."
-    let dotdot = FilePath.Component(dotdotStr)
-    #expect(dotdot != nil)
-    #expect(dotdot?.kind == .parentDirectory)
+      let dotdotStr: String = ".."
+      let dotdot = FilePath.Component(dotdotStr)
+      expectNotNil(dotdot)
+      expectTrue(dotdot?.kind == .parentDirectory)
+    }
   }
 
   // MARK: - Component.init?(codeUnits:)
 
   @Test
   func componentCodeUnitsRejectsNUL() {
-    #expect(componentFromCodeUnits(codeUnits("foo")) != nil)
-    #expect(componentFromCodeUnits(codeUnits("f\0o")) == nil)
-    #expect(componentFromCodeUnits(codeUnits("\0")) == nil)
+    // Platform-independent.
+    expectNotNil(componentFromCodeUnits(codeUnits("foo")))
+    expectNil(componentFromCodeUnits(codeUnits("f\0o")))
+    expectNil(componentFromCodeUnits(codeUnits("\0")))
   }
 
   @Test
   func componentCodeUnitsRejectsEmpty() {
-    #expect(componentFromCodeUnits([]) == nil)
+    expectNil(componentFromCodeUnits([]))
   }
 
   @Test
   func componentCodeUnitsRejectsSeparator() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    #expect(componentFromCodeUnits(codeUnits("foo/bar")) == nil)
+    withPlatform(.linux) {
+      expectNil(componentFromCodeUnits(codeUnits("foo/bar")))
+      // Backslash is legal on Linux
+      expectNotNil(componentFromCodeUnits(codeUnits(#"foo\bar"#)))
+    }
 
-    // Backslash is legal on Linux
-    #expect(componentFromCodeUnits(codeUnits(#"foo\bar"#)) != nil)
-
-    FilePath.REVIEW_ONLY_platform = .windows
-    #expect(componentFromCodeUnits(codeUnits(#"foo\bar"#)) == nil)
-    #expect(componentFromCodeUnits(codeUnits("foo/bar")) == nil)
+    withPlatform(.windows) {
+      expectNil(componentFromCodeUnits(codeUnits(#"foo\bar"#)))
+      expectNil(componentFromCodeUnits(codeUnits("foo/bar")))
+    }
   }
 
   @Test
   func componentCodeUnitRoundTrip() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    for name in ["hello", ".", "..", "file.txt", "café", "🧟‍♀️"] {
-      let s: String = name
-      let comp = FilePath.Component(s)!
-      let extracted = comp.withCodeUnits { Array($0) }
-      let roundTripped = componentFromCodeUnits(extracted)
-      #expect(roundTripped == comp,
-        "Component code unit round-trip failed for \(name.debugDescription)")
+    withPlatform(.linux) {
+      for name in ["hello", ".", "..", "file.txt", "café", "🧟‍♀️"] {
+        let s: String = name
+        let comp = FilePath.Component(s)!
+        let extracted = comp.withCodeUnits { Array($0) }
+        let roundTripped = componentFromCodeUnits(extracted)
+        expectTrue(roundTripped == comp,
+          "Component code unit round-trip failed for \(name.debugDescription)")
+      }
     }
   }
 
@@ -225,113 +246,121 @@ extension AllTests.ValidationTests {
 
   @Test
   func anchorInitRejectsNULLinux() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let good: String = "/"
-    #expect(FilePath.Anchor(good) != nil)
+    withPlatform(.linux) {
+      let good: String = "/"
+      expectNotNil(FilePath.Anchor(good))
 
-    let nul1: String = "/\0"
-    #expect(FilePath.Anchor(nul1) == nil)
+      let nul1: String = "/\0"
+      expectNil(FilePath.Anchor(nul1))
 
-    let nul2: String = "\0/"
-    #expect(FilePath.Anchor(nul2) == nil)
+      let nul2: String = "\0/"
+      expectNil(FilePath.Anchor(nul2))
+    }
   }
 
   @Test
   func anchorInitRejectsNULDarwin() {
-    FilePath.REVIEW_ONLY_platform = .darwin
-    let root: String = "/"
-    #expect(FilePath.Anchor(root) != nil)
+    withPlatform(.darwin) {
+      let root: String = "/"
+      expectNotNil(FilePath.Anchor(root))
 
-    let nofollow: String = "/.nofollow/"
-    #expect(FilePath.Anchor(nofollow) != nil)
+      let nofollow: String = "/.nofollow/"
+      expectNotNil(FilePath.Anchor(nofollow))
 
-    let nul: String = "/.nofollow\0/"
-    #expect(FilePath.Anchor(nul) == nil)
+      let nul: String = "/.nofollow\0/"
+      expectNil(FilePath.Anchor(nul))
 
-    let vol: String = "/.vol/1234/5678"
-    #expect(FilePath.Anchor(vol) != nil)
+      let vol: String = "/.vol/1234/5678"
+      expectNotNil(FilePath.Anchor(vol))
 
-    let volNul: String = "/.vol/1234\0/5678"
-    #expect(FilePath.Anchor(volNul) == nil)
+      let volNul: String = "/.vol/1234\0/5678"
+      expectNil(FilePath.Anchor(volNul))
+    }
   }
 
   @Test
   func anchorInitRejectsNULWindows() {
-    FilePath.REVIEW_ONLY_platform = .windows
-    let drive: String = #"C:\"#
-    #expect(FilePath.Anchor(drive) != nil)
+    withPlatform(.windows) {
+      let drive: String = #"C:\"#
+      expectNotNil(FilePath.Anchor(drive))
 
-    let driveNul: String = "C:\\\0"
-    #expect(FilePath.Anchor(driveNul) == nil)
+      let driveNul: String = "C:\\\0"
+      expectNil(FilePath.Anchor(driveNul))
 
-    let unc: String = #"\\server\share"#
-    #expect(FilePath.Anchor(unc) != nil)
+      let unc: String = #"\\server\share"#
+      expectNotNil(FilePath.Anchor(unc))
 
-    let uncNul: String = "\\\\\0server\\share"
-    #expect(FilePath.Anchor(uncNul) == nil)
+      let uncNul: String = "\\\\\0server\\share"
+      expectNil(FilePath.Anchor(uncNul))
+    }
   }
 
   @Test
   func anchorInitRejectsInvalid() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let empty: String = ""
-    #expect(FilePath.Anchor(empty) == nil)
+    withPlatform(.linux) {
+      let empty: String = ""
+      expectNil(FilePath.Anchor(empty))
 
-    let noAnchor: String = "foo"
-    #expect(FilePath.Anchor(noAnchor) == nil)
+      let noAnchor: String = "foo"
+      expectNil(FilePath.Anchor(noAnchor))
 
-    let hasComponents: String = "/foo"
-    #expect(FilePath.Anchor(hasComponents) == nil)
+      let hasComponents: String = "/foo"
+      expectNil(FilePath.Anchor(hasComponents))
+    }
   }
 
   // MARK: - isAbsolute (isRelative removed)
 
   @Test
   func isAbsoluteExists() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let abs: FilePath = "/foo"
-    #expect(abs.isAbsolute)
+    withPlatform(.linux) {
+      let abs: FilePath = "/foo"
+      expectTrue(abs.isAbsolute)
 
-    let rel: FilePath = "foo"
-    #expect(!rel.isAbsolute)
+      let rel: FilePath = "foo"
+      expectFalse(rel.isAbsolute)
+    }
   }
 
   // MARK: - withCodeUnits
 
   @Test
   func withCodeUnitsProvidesPointerAndCount() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let path: FilePath = "/foo/bar"
-    path.withCodeUnits { ptr, count in
-      #expect(count == 8)
-      #expect(ptr[0] == CChar(UInt8(ascii: "/")))
-      #expect(ptr[1] == CChar(UInt8(ascii: "f")))
-      #expect(ptr[4] == CChar(UInt8(ascii: "/")))
-      // The count excludes the null terminator, which sits at [count].
-      #expect(ptr[count] == 0)
+    withPlatform(.linux) {
+      let path: FilePath = "/foo/bar"
+      path.withCodeUnits { ptr, count in
+        expectEqual(count, 8)
+        expectEqual(ptr[0], CChar(UInt8(ascii: "/")))
+        expectEqual(ptr[1], CChar(UInt8(ascii: "f")))
+        expectEqual(ptr[4], CChar(UInt8(ascii: "/")))
+        // The count excludes the null terminator, which sits at [count].
+        expectEqual(ptr[count], 0)
+      }
     }
   }
 
   @Test
   func withCodeUnitsEmpty() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let path: FilePath = ""
-    path.withCodeUnits { ptr, count in
-      #expect(count == 0)
-      #expect(ptr[0] == 0)
+    withPlatform(.linux) {
+      let path: FilePath = ""
+      path.withCodeUnits { ptr, count in
+        expectEqual(count, 0)
+        expectEqual(ptr[0], 0)
+      }
     }
   }
 
   @Test
   func withCodeUnitsNonASCII() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let path: FilePath = "/café"
-    path.withCodeUnits { ptr, count in
-      // "/café" is 6 UTF-8 bytes: / c a f 0xC3 0xA9
-      #expect(count == 6)
-      #expect(ptr[0] == CChar(UInt8(ascii: "/")))
-      #expect(ptr[5] == CChar(bitPattern: 0xA9))
-      #expect(ptr[count] == 0)
+    withPlatform(.linux) {
+      let path: FilePath = "/café"
+      path.withCodeUnits { ptr, count in
+        // "/café" is 6 UTF-8 bytes: / c a f 0xC3 0xA9
+        expectEqual(count, 6)
+        expectEqual(ptr[0], CChar(UInt8(ascii: "/")))
+        expectEqual(ptr[5], CChar(bitPattern: 0xA9))
+        expectEqual(ptr[count], 0)
+      }
     }
   }
 
@@ -343,13 +372,14 @@ extension AllTests.ValidationTests {
       while ptr[i] != 0 { i += 1 }
       return i
     }
-    #expect(len == 4)
+    expectEqual(len, 4)
   }
 
   @Test
   func withCodeUnitsThrowsTypedError() {
     struct TestError: Error {}
     let path: FilePath = "/foo"
+    // SEAM EXCEPTION (see file header): no throwing-assertion helper in the seam.
     #expect(throws: TestError.self) {
       try path.withCodeUnits {
         (_: UnsafePointer<FilePath.CodeUnit>, _: Int) throws(TestError) -> Int in
@@ -362,15 +392,17 @@ extension AllTests.ValidationTests {
 
   @Test
   func componentStringLiteralValid() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let c: FilePath.Component = "hello"
-    #expect(c.description == "hello")
+    withPlatform(.linux) {
+      let c: FilePath.Component = "hello"
+      expectEqual(c.description, "hello")
+    }
   }
 
   @Test
   func anchorStringLiteralValid() {
-    FilePath.REVIEW_ONLY_platform = .linux
-    let a: FilePath.Anchor = "/"
-    #expect(a.description == "/")
+    withPlatform(.linux) {
+      let a: FilePath.Anchor = "/"
+      expectEqual(a.description, "/")
+    }
   }
 }
