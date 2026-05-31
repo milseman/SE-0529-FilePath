@@ -23,10 +23,9 @@ public struct FilePath: Sendable {
 
   // Normalizing init: the funnel for all path construction.
   //
-  // Darwin uses a split approach: parse anchor/suffix boundaries on
-  // raw bytes (verbatim), normalize only the relative portion, then
-  // reassemble. This ensures double slashes inside anchor structures
-  // or resource fork suffixes cause the match to fail correctly.
+  // All three platforms coalesce separators first, then parse. Darwin
+  // additionally canonicalizes the anchor and excludes the resource-fork
+  // suffix from dot-normalization (see _normalizeDarwin).
   internal init(normalizing str: _SystemString) {
     if _isDarwin {
       self = Self._normalizeDarwin(str)
@@ -70,48 +69,54 @@ public struct FilePath: Sendable {
   }
 
   private static func _normalizeDarwin(_ str: _SystemString) -> FilePath {
-    var raw = str
-    raw._canonicalizeDarwinAnchor()
+    // Darwin follows the coalescing POSIX kernel parse: coalesce the
+    // whole string first, then canonicalize the anchor, then parse the
+    // anchor and resource-fork suffix boundaries on those same
+    // coalesced+canonicalized bytes. This makes semantically-identical
+    // spellings store identically — e.g. /.resolve//1/foo and
+    // /.resolve/1/foo both canonicalize to /.nofollow/foo. (The earlier
+    // approach canonicalized raw bytes that still contained the double
+    // slash, so canonicalization never fired and a non-canonical anchor
+    // such as /.resolve/1/ could persist.)
+    var s = str
+    s._normalizeSeparators()
+    s._canonicalizeDarwinAnchor()
 
-    // Parse boundaries on raw bytes (verbatim matching)
-    let (rootEnd, relBegin) = raw._parseRoot()
-    let hasAnchor = rootEnd != raw.startIndex
-    var suffixStart = raw._resourceForkSuffixStart ?? raw.endIndex
-    // If suffix overlaps with anchor region, it's not a real suffix
+    // Parse the anchor and resource-fork suffix on the
+    // coalesced+canonicalized string.
+    let (rootEnd, relBegin) = s._parseRoot()
+    let hasAnchor = rootEnd != s.startIndex
+    var suffixStart = s._resourceForkSuffixStart ?? s.endIndex
+    // If the suffix overlaps the anchor region, it's not a real suffix.
     if suffixStart < relBegin {
-      suffixStart = raw.endIndex
+      suffixStart = s.endIndex
     }
 
-    // Extract three slices
-    let anchorSlice = Array(raw[raw.startIndex..<rootEnd])
-    let gapSlice = Array(raw[rootEnd..<relBegin])
-    var relativeChars = Array(raw[relBegin..<suffixStart])
-    let suffixSlice = Array(raw[suffixStart..<raw.endIndex])
+    // Slice into anchor + gap separator + relative + suffix.
+    let anchorSlice = Array(s[s.startIndex..<rootEnd])
+    let gapSlice = Array(s[rootEnd..<relBegin])
+    let relativeChars = Array(s[relBegin..<suffixStart])
+    let suffixSlice = Array(s[suffixStart..<s.endIndex])
 
-    // Strip leading separators from relative portion (they are
-    // redundant duplicates of the gap/anchor separator)
-    while let first = relativeChars.first, first == ._slash {
-      relativeChars.removeFirst()
-    }
-
-    // Normalize the relative portion only
+    // Dot-normalize the relative portion only. Separators are already
+    // coalesced and the suffix is excluded from this step.
     var relative = _SystemString(relativeChars)
-    relative._normalizeSeparators()
     relative._normalizeDots(isVerbatimComponent: false, isRooted: hasAnchor)
 
-    // Strip trailing separator from relative if suffix follows
+    // Strip a trailing separator from the relative portion when a suffix
+    // follows it.
     if !suffixSlice.isEmpty && !relative.isEmpty
        && isSeparator(relative.last!) {
       relative.removeLast()
     }
 
-    // Reassemble: anchor + gap + relative + suffix
+    // Reassemble: anchor + gap + relative + suffix.
     var result = _SystemString()
     result.append(contentsOf: anchorSlice)
     result.append(contentsOf: gapSlice)
     if !relative.isEmpty && gapSlice.isEmpty && hasAnchor {
-      // Need separator between anchor and relative, but only if
-      // the anchor doesn't already end with one
+      // Insert a separator between anchor and relative, but only if the
+      // anchor doesn't already end with one.
       if let last = anchorSlice.last, last != ._slash {
         result.append(._slash)
       }

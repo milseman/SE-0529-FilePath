@@ -196,11 +196,15 @@ extension _SystemString {
       }
     }
 
-    // \\?\C:[\]
+    // \\?\<drive>:[\] — a drive letter is any single non-separator code
+    // unit before the colon (matching eatDrive and the proposal). In
+    // verbatim paths separators are not normalized and `/` is a legal
+    // component byte, so `!isSeparator` accepts it: `\\?\/:` parses with
+    // drive `/`, taking the bytes as written.
     if afterPrefix < endIndex {
       let afterFirst = index(after: afterPrefix)
       if afterFirst < endIndex
-         && self[afterPrefix]._isLetter
+         && !isSeparator(self[afterPrefix])
          && self[afterFirst] == ._colon {
         let afterColon = index(after: afterFirst)
         return skipPastSep(from: afterColon)
@@ -285,13 +289,16 @@ extension _SystemString {
     let deviceRange = lexer.eatComponent()
     let rootEnd = lexer.current
 
-    // Check if device is a drive letter (e.g., C: or C:\)
+    // Check if device is a drive letter (e.g., C: or C:\). A drive
+    // letter is any single non-separator code unit before the colon
+    // (matching eatDrive); in verbatim paths `/` is a non-separator and
+    // legal, so `\\?\/:` parses with drive `/`.
     var drive: FilePath.CodeUnit? = nil
     let deviceSlice = self[deviceRange]
     if deviceSlice.count >= 2 {
       let first = deviceSlice[deviceSlice.startIndex]
       let second = deviceSlice[deviceSlice.index(after: deviceSlice.startIndex)]
-      if first._isLetter && second == ._colon {
+      if !isSeparator(first) && second == ._colon {
         if deviceSlice.count == 2 {
           drive = first
           // Check for trailing backslash after C:
@@ -368,13 +375,14 @@ extension _SystemString {
         expectComponent()
         return lexer.current
       }
-      // Check for drive letter device: \\.\C:\ or \\?\C:\
+      // Check for drive letter device: \\.\C:\ or \\?\C:\. A drive
+      // letter is any single non-separator code unit before the colon.
       let deviceRange = lexer.eatComponent()
       let deviceSlice = self[deviceRange]
       if deviceSlice.count == 2 {
         let first = deviceSlice[deviceSlice.startIndex]
         let second = deviceSlice[deviceSlice.index(after: deviceSlice.startIndex)]
-        if first._isLetter && second == ._colon {
+        if !isSeparator(first) && second == ._colon {
           // Device drive letter - eat the trailing backslash if present
           if lexer.eatBackslash() {
             return lexer.current

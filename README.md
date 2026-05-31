@@ -8,6 +8,18 @@
 
 **Review period:** April 22 - May 4, 2026
 
+## Design model: emergent semantics
+
+`FilePath` uses a **coalesce-and-reparse** model. Construction and mutation coalesce separators and re-parse the resulting bytes; a path's structure — its anchor, components, and suffix — is an *emergent* property of re-decomposing whatever byte string it currently stores, never a separately stored classification. The kernel never sees the pre-coalesced bytes: `FilePath` defines what it stores, and the coalesced form is what reaches the kernel.
+
+Several consequences follow, all intended and mutually consistent:
+
+- **Coalescing can promote bytes into a match** that the raw, pre-coalesced bytes would not have matched. `/.resolve//1/foo` coalesces to `/.resolve/1/foo` and canonicalizes to `/.nofollow/foo`; `/foo/..namedfork//rsrc` coalesces to `/foo/..namedfork/rsrc` and *is* a resource fork; `/.vol//1234/5678` coalesces to a volfs anchor.
+- **Mutation follows the same rule.** Inserting a component named `.nofollow` (or `.resolve`, `.vol`) at the front of an absolute path re-decomposes so the bytes are absorbed into the anchor; component edits that touch the end of the view can add or remove a resource-fork or trailing-separator suffix. (See the *Reparse after component mutation* note under [Open proposal questions](#open-proposal-questions); tested in `ComponentViewTests`.)
+- **There is no separate "what does the kernel do with the double slash" question.** Only the coalesced form reaches the kernel, so the stored form is the whole story.
+
+This emergent model is the chosen design. The only coherent alternative — aggressively trapping or rejecting degenerate inputs — has its own problems and was not chosen: **`FilePath` rejects only `NUL`.**
+
 ## Try it out
 
 ```
@@ -60,7 +72,7 @@ The full public surface described in the proposal:
 
 ## Open proposal questions
 
-- **Double slashes within Darwin anchor structures**: Paths like `/.vol//1234/5678` have a double slash inside what would otherwise be a `.vol` anchor. The verbatim anchor check on the raw bytes correctly rejects this (empty FSID). But after separator coalescing, the path normalizes to `/.vol/1234/5678`, which IS a valid volfs anchor. The kernel would interpret the coalesced form as volfs. The reference implementation currently coalesces then re-parses, producing a volfs anchor. The test data expects the opposite (anchor `/`, regular components). **10 known issues are attributable to this ambiguity** (each flagged input trips 2–3 expectations). Similar issue affects `/.resolve//N/` paths and `/foo/..namedfork//rsrc` resource fork paths. These degenerate inputs may warrant rejection or special handling in the final implementation.
+- **Double slashes within Darwin anchor structures (resolved — settled behavior)**: Paths like `/.vol//1234/5678`, `/.resolve//1/foo`, and `/foo/..namedfork//rsrc` carry a double slash inside what would otherwise be an anchor or suffix structure. Per the emergent-semantics model above, they coalesce and re-parse: `/.vol//1234/5678` → `/.vol/1234/5678` (volfs anchor), `/.resolve//1/foo` → `/.resolve/1/foo` → canonicalizes to `/.nofollow/foo`, and `/foo/..namedfork//rsrc` → `/foo/..namedfork/rsrc` (a resource fork). The coalesced form is the only form the kernel ever sees, so there is no separate question of how the kernel treats the double slash. These inputs are **not** rejected or special-cased (only `NUL` is rejected), and the test data reflects the coalesced results.
 
 - **Degenerate Windows UNC paths**: Paths like `\\server` (no share), `\\` (bare double backslash), and `\\server\` (server but no share name) are commented out in the test data as "behavior TBD."
 
@@ -80,7 +92,7 @@ The full public surface described in the proposal:
 
 ```
 Linux:   all passing
-Darwin:  passes with 10 known issues (double-slash-within-anchor cases, see above)
+Darwin:  all passing
 Windows: all passing
 ```
 

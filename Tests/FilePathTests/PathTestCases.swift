@@ -1716,16 +1716,21 @@ let pathTestCases: [PathTestCase] = [
             printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true)
     ),
 
-    // Double slash within resource fork suffix: verbatim match fails
+    // Double slash within the resource fork suffix coalesces away: the
+    // whole string is coalesced before suffix detection, so this parses
+    // the same as /foo/..namedfork/rsrc. Coalesce-derived expectation;
+    // XNU-unconfirmed (the proposal gives no //-inside-suffix example).
     PathTestCase(
         input: "/foo/..namedfork//rsrc",
-        unix: Expected(
+        linux: Expected(
             anchor: "/", components: ["foo", "..namedfork", "rsrc"],
+            printed: "/foo/..namedfork/rsrc", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/", components: ["foo"], isResourceFork: true,
             printed: "/foo/..namedfork/rsrc", isAbsolute: true),
         windows: Expected(
             anchor: #"\"#, components: ["foo", "..namedfork", "rsrc"],
-            printed: #"\foo\..namedfork\rsrc"#, isAbsolute: false, isRooted: true),
-        knownDarwinIssue: true
+            printed: #"\foo\..namedfork\rsrc"#, isAbsolute: false, isRooted: true)
     ),
 
     // Double slash BEFORE resource fork suffix: suffix IS the last 17 bytes,
@@ -1743,16 +1748,19 @@ let pathTestCases: [PathTestCase] = [
             printed: #"\foo\..namedfork\rsrc"#, isAbsolute: false, isRooted: true)
     ),
 
-    // Double slash where resolve flag number should be: not a resolve prefix
+    // Double slash where the resolve flag number should be: coalesces to
+    // /.resolve/1/foo, which then canonicalizes to /.nofollow/foo on Darwin.
     PathTestCase(
         input: "/.resolve//1/foo",
-        unix: Expected(
+        linux: Expected(
             anchor: "/", components: [".resolve", "1", "foo"],
             printed: "/.resolve/1/foo", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.nofollow/", components: ["foo"],
+            printed: "/.nofollow/foo", isAbsolute: true),
         windows: Expected(
             anchor: #"\"#, components: [".resolve", "1", "foo"],
-            printed: #"\.resolve\1\foo"#, isAbsolute: false, isRooted: true),
-        knownDarwinIssue: true
+            printed: #"\.resolve\1\foo"#, isAbsolute: false, isRooted: true)
     ),
 
     // Double slash after nofollow prefix boundary: prefix matches (first 11
@@ -2092,6 +2100,38 @@ let pathTestCases: [PathTestCase] = [
         windows: Expected(
             anchor: "::", components: ["foo"],
             printed: "::foo", isAbsolute: false, driveLetter: ":")
+    ),
+
+    // The non-separator rule extends to device-namespace drives:
+    // "\\.\1:" exposes drive "1" just as "\\.\C:" exposes "C".
+    PathTestCase(
+        input: #"\\.\1:"#,
+        unix: .singleComponent(#"\\.\1:"#),
+        windows: Expected(
+            anchor: #"\\.\1:"#, components: [],
+            printed: #"\\.\1:"#, isAbsolute: true, driveLetter: "1")
+    ),
+
+    // ...and to verbatim drives: "\\?\1:\" exposes drive "1".
+    PathTestCase(
+        input: #"\\?\1:\"#,
+        unix: .singleComponent(#"\\?\1:\"#),
+        windows: Expected(
+            anchor: #"\\?\1:\"#, components: [],
+            printed: #"\\?\1:\"#, isAbsolute: true, driveLetter: "1")
+    ),
+
+    // Verbatim paths take bytes as written: separators are not normalized,
+    // so "/" is a legal (non-separator) drive letter and "\\?\/:" has
+    // drive "/".
+    PathTestCase(
+        input: #"\\?\/:"#,
+        unix: Expected(
+            anchor: nil, components: [#"\\?\"#, ":"],
+            printed: #"\\?\/:"#, isAbsolute: false),
+        windows: Expected(
+            anchor: #"\\?\/:"#, components: [],
+            printed: #"\\?\/:"#, isAbsolute: true, driveLetter: "/")
     ),
 
     // MARK: - Trailing sep on deeper paths
