@@ -1716,10 +1716,12 @@ let pathTestCases: [PathTestCase] = [
             printed: #"\.vol\1234\5678"#, isAbsolute: false, isRooted: true)
     ),
 
-    // Double slash within the resource fork suffix coalesces away: the
-    // whole string is coalesced before suffix detection, so this parses
-    // the same as /foo/..namedfork/rsrc. Coalesce-derived expectation;
-    // XNU-unconfirmed (the proposal gives no //-inside-suffix example).
+    // The resource-fork match is an emergent property of separator
+    // coalescing, consistent with the Darwin anchor cases: the whole
+    // string is coalesced before suffix detection, so the kernel only
+    // ever receives the coalesced form (/foo/..namedfork/rsrc) and there
+    // is no separate kernel-behavior question to confirm. See README
+    // "Design model: emergent semantics."
     PathTestCase(
         input: "/foo/..namedfork//rsrc",
         linux: Expected(

@@ -16,6 +16,7 @@ extension FilePath {
   ///
   /// This operation is synchronous and may block.
   @available(*, noasync)
+  @available(SwiftStdlib 9999, *)
   public func resolve() throws -> FilePath {
     preconditionFailure("resolve() is not yet implemented in the reference implementation")
   }

@@ -9,10 +9,12 @@
 
 /// A file path is a null-terminated sequence of bytes that represents
 /// a location in the file system.
+@available(SwiftStdlib 9999, *)
 public struct FilePath: Sendable {
   internal var _storage: _SystemString
 
   /// Creates an empty file path.
+  @available(SwiftStdlib 9999, *)
   public init() {
     self._storage = _SystemString()
   }
@@ -131,11 +133,13 @@ public struct FilePath: Sendable {
   ///
   /// On Linux and Darwin, this is the code unit for `/`.
   /// On Windows, it is the code unit for `\`.
+  @available(SwiftStdlib 9999, *)
   public static var separator: FilePath.CodeUnit {
     platformSeparator
   }
 
   /// Whether this path is empty.
+  @available(SwiftStdlib 9999, *)
   public var isEmpty: Bool { _storage.isEmpty }
 }
 

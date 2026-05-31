@@ -11,6 +11,7 @@
 
 extension FilePath {
   /// The anchor of this path, if any.
+  @available(SwiftStdlib 9999, *)
   public var anchor: Anchor? {
     get {
       let (rootEnd, _) = _storage._parseRoot()
@@ -64,6 +65,7 @@ extension FilePath {
   /// In-place mutation (`path.components.append(x)`) lowers to
   /// get-mutate-set: the temporary view's mutating method splices into
   /// its own `_path`, then `set` splices that result back into self.
+  @available(SwiftStdlib 9999, *)
   public var components: ComponentView {
     get { ComponentView(self) }
     set {
@@ -89,6 +91,7 @@ extension FilePath {
 extension FilePath {
   /// Returns true if this path uniquely identifies the location of
   /// a file without reference to an additional starting location.
+  @available(SwiftStdlib 9999, *)
   public var isAbsolute: Bool {
     guard let anchor = anchor else { return false }
     if !_isWindows { return true }
@@ -109,6 +112,7 @@ extension FilePath {
 extension FilePath {
   /// Whether this path ends with a directory separator that is
   /// not structurally required by the path's anchor.
+  @available(SwiftStdlib 9999, *)
   public var hasTrailingSeparator: Bool {
     get {
       guard !isEmpty else { return false }
@@ -157,6 +161,7 @@ extension FilePath {
   }
 
   /// Returns a copy with a trailing separator added.
+  @available(SwiftStdlib 9999, *)
   public func withTrailingSeparator() -> FilePath {
     var copy = self
     copy.hasTrailingSeparator = true
@@ -164,6 +169,7 @@ extension FilePath {
   }
 
   /// Returns a copy with the trailing separator removed.
+  @available(SwiftStdlib 9999, *)
   public func withoutTrailingSeparator() -> FilePath {
     var copy = self
     copy.hasTrailingSeparator = false
@@ -175,6 +181,7 @@ extension FilePath {
 
 extension FilePath {
   /// Whether this path ends with a resource fork reference.
+  @available(SwiftStdlib 9999, *)
   public var isResourceFork: Bool {
     get { _storage._hasResourceForkSuffix() }
     set {
@@ -201,6 +208,7 @@ extension FilePath {
   }
 
   /// Returns a copy with resource fork suffix appended.
+  @available(SwiftStdlib 9999, *)
   public func withResourceFork() -> FilePath {
     var copy = self
     copy.isResourceFork = true
@@ -208,6 +216,7 @@ extension FilePath {
   }
 
   /// Returns a copy with resource fork suffix removed.
+  @available(SwiftStdlib 9999, *)
   public func withoutResourceFork() -> FilePath {
     var copy = self
     copy.isResourceFork = false
@@ -219,6 +228,7 @@ extension FilePath {
 
 extension FilePath {
   /// Creates a file path from a decomposed form.
+  @available(SwiftStdlib 9999, *)
   public init(
     anchor: Anchor?,
     _ components: some Sequence<Component>,
@@ -261,6 +271,7 @@ extension FilePath {
   }
 
   /// Creates a file path from a decomposed form with a resource fork suffix.
+  @available(SwiftStdlib 9999, *)
   public init(
     anchor: Anchor?,
     _ components: some Sequence<Component>,

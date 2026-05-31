@@ -13,8 +13,10 @@ extension FilePath {
   /// The type used to represent a "character" in the platform's
   /// native path encoding.
   #if os(Windows)
+  @available(SwiftStdlib 9999, *)
   public typealias CodeUnit = UInt16
   #else
+  @available(SwiftStdlib 9999, *)
   public typealias CodeUnit = CChar
   #endif
 
@@ -36,6 +38,7 @@ extension FilePath {
   ///
   /// On Windows the pointer is wide (`UnsafePointer<UInt16>`); see
   /// also `String.withCString(encodedAs:_:)`.
+  @available(SwiftStdlib 9999, *)
   public func withCodeUnits<Result, E: Error>(
     _ body: (UnsafePointer<FilePath.CodeUnit>, Int) throws(E) -> Result
   ) throws(E) -> Result {
@@ -68,6 +71,7 @@ extension FilePath {
   /// The buffer should not include a null terminator. Returns `nil`
   /// if the buffer contains `NUL`, which is not a valid path byte
   /// on any supported platform.
+  @available(SwiftStdlib 9999, *)
   public init?(codeUnits: UnsafeBufferPointer<CodeUnit>) {
     var chars = unsafe Array(codeUnits)
     guard !chars.contains(._null) else { return nil }
@@ -92,6 +96,7 @@ extension FilePath.Component {
   /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
   ///
   /// Access the code units of this component.
+  @available(SwiftStdlib 9999, *)
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
@@ -102,6 +107,7 @@ extension FilePath.Component {
   ///
   /// Returns `nil` if the code units are empty, contain `NUL`, or are
   /// otherwise invalid (e.g. contain more than one component).
+  @available(SwiftStdlib 9999, *)
   public init?(codeUnits: UnsafeBufferPointer<FilePath.CodeUnit>) {
     guard codeUnits.count > 0 else { return nil }
     let chars = unsafe Array(codeUnits)
@@ -119,6 +125,7 @@ extension FilePath.Anchor {
   /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
   ///
   /// Access the code units of this anchor.
+  @available(SwiftStdlib 9999, *)
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {
@@ -130,6 +137,7 @@ extension FilePath.ComponentView {
   /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
   ///
   /// Access the code units of the component view.
+  @available(SwiftStdlib 9999, *)
   public func withCodeUnits<T>(
     _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
   ) rethrows -> T {

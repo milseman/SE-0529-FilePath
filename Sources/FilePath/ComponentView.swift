@@ -10,6 +10,7 @@
 extension FilePath {
   /// A bidirectional, range-replaceable collection of the
   /// components that make up a file path.
+  @available(SwiftStdlib 9999, *)
   public struct ComponentView: Sendable {
     internal var _path: FilePath
 
@@ -52,9 +53,11 @@ extension FilePath {
 // MARK: - Index
 
 extension FilePath.ComponentView {
+  @available(SwiftStdlib 9999, *)
   public struct Index: Sendable, Comparable, Hashable {
     internal var _storage: _SystemString.Index
 
+    @available(SwiftStdlib 9999, *)
     public static func < (lhs: Self, rhs: Self) -> Bool {
       lhs._storage < rhs._storage
     }
@@ -88,29 +91,35 @@ extension FilePath.ComponentView {
 // MARK: - BidirectionalCollection
 
 extension FilePath.ComponentView: BidirectionalCollection {
+  @available(SwiftStdlib 9999, *)
   public typealias Element = FilePath.Component
 
+  @available(SwiftStdlib 9999, *)
   public var startIndex: Index {
     // Skip gap separator(s) between anchor and first component
     Index(_skipSeparators(from: _relStart))
   }
 
+  @available(SwiftStdlib 9999, *)
   public var endIndex: Index {
     // endIndex is the end of the iterable (component) region — the start
     // of any suffix (resource fork) or end of storage if no suffix.
     Index(_relEnd)
   }
 
+  @available(SwiftStdlib 9999, *)
   public var isEmpty: Bool {
     startIndex == endIndex
   }
 
+  @available(SwiftStdlib 9999, *)
   public func index(after i: Index) -> Index {
     let compEnd = _componentEnd(at: i._storage)
     let next = _skipSeparators(from: compEnd)
     return Index(next)
   }
 
+  @available(SwiftStdlib 9999, *)
   public func index(before i: Index) -> Index {
     var idx = i._storage
     // Back up past separator(s)
@@ -126,6 +135,7 @@ extension FilePath.ComponentView: BidirectionalCollection {
     return Index(idx)
   }
 
+  @available(SwiftStdlib 9999, *)
   public subscript(position: Index) -> FilePath.Component {
     let end = _componentEnd(at: position._storage)
     _internalInvariant(end > position._storage, "Component must be non-empty")
@@ -145,10 +155,12 @@ extension FilePath.ComponentView: BidirectionalCollection {
 // resulting bytes parse as.
 
 extension FilePath.ComponentView: RangeReplaceableCollection {
+  @available(SwiftStdlib 9999, *)
   public init() {
     self.init(FilePath())
   }
 
+  @available(SwiftStdlib 9999, *)
   public mutating func replaceSubrange<C>(
     _ subrange: Range<Index>, with newElements: C
   ) where C: Collection, C.Element == FilePath.Component {
@@ -254,9 +266,11 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
 // MARK: - Hashable, Comparable
 
 extension FilePath.ComponentView: Hashable {
+  @available(SwiftStdlib 9999, *)
   public static func == (lhs: FilePath.ComponentView, rhs: FilePath.ComponentView) -> Bool {
     lhs.elementsEqual(rhs)
   }
+  @available(SwiftStdlib 9999, *)
   public func hash(into hasher: inout Hasher) {
     for c in self {
       hasher.combine(c)
@@ -265,6 +279,7 @@ extension FilePath.ComponentView: Hashable {
 }
 
 extension FilePath.ComponentView: Comparable {
+  @available(SwiftStdlib 9999, *)
   public static func < (lhs: FilePath.ComponentView, rhs: FilePath.ComponentView) -> Bool {
     for (l, r) in zip(lhs, rhs) {
       if l < r { return true }

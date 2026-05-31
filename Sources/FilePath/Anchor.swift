@@ -10,6 +10,7 @@
 extension FilePath {
   /// The anchor of a file path identifies a reference point
   /// and precedes any components.
+  @available(SwiftStdlib 9999, *)
   public struct Anchor: Sendable {
     internal var _path: FilePath
     internal var _end: _SystemString.Index
@@ -25,6 +26,7 @@ extension FilePath {
     }
 
     /// Whether this anchor is rooted.
+    @available(SwiftStdlib 9999, *)
     public var isRooted: Bool {
       if !_isWindows { return true }
 
@@ -46,6 +48,7 @@ extension FilePath {
     /// NOTE: The proposal gates this under `#if os(Windows)`; it is kept
     /// cross-platform here so the `REVIEW_ONLY` platform simulation can
     /// exercise it. On non-Windows platforms it returns `nil`.
+    @available(SwiftStdlib 9999, *)
     public var driveLetter: Unicode.Scalar? {
       if !_isWindows { return nil }
 
@@ -58,6 +61,7 @@ extension FilePath {
     }
 
     /// Whether this anchor uses the Windows verbatim-component form.
+    @available(SwiftStdlib 9999, *)
     public var isVerbatimComponent: Bool {
       if !_isWindows { return false }
       if let parsed = _parseWindowsAnchor() {
@@ -75,9 +79,11 @@ extension FilePath {
 // MARK: - Anchor Hashable, Comparable, descriptions
 
 extension FilePath.Anchor: Hashable {
+  @available(SwiftStdlib 9999, *)
   public static func == (lhs: FilePath.Anchor, rhs: FilePath.Anchor) -> Bool {
     lhs._slice.elementsEqual(rhs._slice)
   }
+  @available(SwiftStdlib 9999, *)
   public func hash(into hasher: inout Hasher) {
     for c in _slice {
       hasher.combine(c)
@@ -86,12 +92,14 @@ extension FilePath.Anchor: Hashable {
 }
 
 extension FilePath.Anchor: Comparable {
+  @available(SwiftStdlib 9999, *)
   public static func < (lhs: FilePath.Anchor, rhs: FilePath.Anchor) -> Bool {
     lhs._slice.lexicographicallyPrecedes(rhs._slice)
   }
 }
 
 extension FilePath.Anchor: CustomStringConvertible, CustomDebugStringConvertible {
+  @available(SwiftStdlib 9999, *)
   public var description: String {
     unsafe _slice.withCodeUnits {
       unsafe $0.withMemoryRebound(to: FilePath._Encoding.CodeUnit.self) {
@@ -99,6 +107,7 @@ extension FilePath.Anchor: CustomStringConvertible, CustomDebugStringConvertible
       }
     }
   }
+  @available(SwiftStdlib 9999, *)
   public var debugDescription: String {
     description.debugDescription
   }
@@ -109,6 +118,7 @@ extension FilePath.Anchor: ExpressibleByStringLiteral {
   ///
   /// Precondition: the literal is non-empty, contains no `NUL`,
   /// and forms a valid anchor.
+  @available(SwiftStdlib 9999, *)
   public init(stringLiteral: String) {
     guard let a = FilePath.Anchor(stringLiteral) else {
       fatalError(
@@ -122,6 +132,7 @@ extension FilePath.Anchor: ExpressibleByStringLiteral {
   ///
   /// Returns `nil` if `string` is empty, contains `NUL`, or is
   /// not a valid anchor.
+  @available(SwiftStdlib 9999, *)
   public init?(_ string: String) {
     guard let path = FilePath(string) else { return nil }
     guard let anchor = path.anchor else { return nil }

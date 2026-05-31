@@ -28,17 +28,6 @@ extension FilePath.CodeUnit {
     self = numericCast(UInt8(ascii: s))
   }
 
-  internal var _isASCII: Bool {
-    (0...0x7F).contains(self)
-  }
-
-  internal var _isLetter: Bool {
-    guard _isASCII else { return false }
-    let raw: UInt8 = numericCast(self)
-    return (UInt8(ascii: "a") ... UInt8(ascii: "z")).contains(raw) ||
-           (UInt8(ascii: "A") ... UInt8(ascii: "Z")).contains(raw)
-  }
-
   /// Interpret this code unit as a drive-letter scalar, presented as
   /// written (no case normalization). On Windows, code units are
   /// UTF-16 and an unpaired surrogate yields `U+FFFD`.

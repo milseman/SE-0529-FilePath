@@ -18,4 +18,8 @@ struct AllTests {
   struct DecompositionTests {}
   struct ComponentViewTests {}
   struct ValidationTests {}
+  // New coverage (see TestSupport.swift for the framework/platform seam).
+  struct EqualityTests {}
+  struct StringBridgingTests {}
+  struct ReconstructionTests {}
 }

@@ -10,16 +10,19 @@
 // MARK: - FilePath String bridging
 
 extension FilePath: Hashable {
+  @available(SwiftStdlib 9999, *)
   public static func == (lhs: FilePath, rhs: FilePath) -> Bool {
     lhs._storage == rhs._storage
   }
 
+  @available(SwiftStdlib 9999, *)
   public func hash(into hasher: inout Hasher) {
     hasher.combine(_storage)
   }
 }
 
 extension FilePath: Comparable {
+  @available(SwiftStdlib 9999, *)
   public static func < (lhs: FilePath, rhs: FilePath) -> Bool {
     lhs._storage.lexicographicallyPrecedes(rhs._storage)
   }
@@ -27,6 +30,7 @@ extension FilePath: Comparable {
 
 extension FilePath: CustomStringConvertible, CustomDebugStringConvertible {
   /// A textual representation of the file path.
+  @available(SwiftStdlib 9999, *)
   public var description: String {
     unsafe _storage.withCodeUnits { codeUnits in
       unsafe codeUnits.withMemoryRebound(to: FilePath._Encoding.CodeUnit.self) {
@@ -35,6 +39,7 @@ extension FilePath: CustomStringConvertible, CustomDebugStringConvertible {
     }
   }
 
+  @available(SwiftStdlib 9999, *)
   public var debugDescription: String {
     description.debugDescription
   }
@@ -44,6 +49,7 @@ extension FilePath: ExpressibleByStringLiteral {
   /// Creates a file path from a string literal.
   ///
   /// Traps if the literal contains `NUL` or is otherwise ill-formed.
+  @available(SwiftStdlib 9999, *)
   public init(stringLiteral: String) {
     guard let path = FilePath(stringLiteral) else {
       fatalError(
@@ -56,6 +62,7 @@ extension FilePath: ExpressibleByStringLiteral {
   ///
   /// Returns `nil` if `string` contains `NUL`, which is not a valid
   /// path byte on any supported platform.
+  @available(SwiftStdlib 9999, *)
   public init?(_ string: String) {
     guard !string.utf8.contains(0) else { return nil }
     self.init(normalizing: _SystemString(string))
@@ -65,27 +72,33 @@ extension FilePath: ExpressibleByStringLiteral {
 // MARK: - String decoding/validating
 
 extension String {
+  @available(SwiftStdlib 9999, *)
   public init(decoding path: FilePath) {
     self = path.description
   }
 
+  @available(SwiftStdlib 9999, *)
   public init?(validating path: FilePath) {
     guard let str = String(validating: path._storage) else { return nil }
     self = str
   }
 
+  @available(SwiftStdlib 9999, *)
   public init(decoding anchor: FilePath.Anchor) {
     self = anchor.description
   }
 
+  @available(SwiftStdlib 9999, *)
   public init?(validating anchor: FilePath.Anchor) {
     self = anchor.description
   }
 
+  @available(SwiftStdlib 9999, *)
   public init(decoding component: FilePath.Component) {
     self = component.description
   }
 
+  @available(SwiftStdlib 9999, *)
   public init?(validating component: FilePath.Component) {
     self = component.description
   }

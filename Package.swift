@@ -16,32 +16,46 @@ let package = Package(
                 // annotations. Mirrors swift-system's
                 // `.enableExperimentalFeature("AvailabilityMacro=…")` pattern.
                 //
-                // NAME ("FilePathTBD") is a TEMPORARY PLACEHOLDER pending the
-                // macro-name decision (item 2 of the porting discussion —
-                // recommendation is the canonical `SwiftStdlib` token; see
-                // PORTING notes). Renaming the token later is the churn this
-                // indirection exists to avoid, so it is deliberately not the
-                // final name yet.
+                // TOKEN is `SwiftStdlib` — the canonical stdlib availability
+                // macro, NOT a bespoke FilePath token. The stdlib and
+                // swift-system each define `SwiftStdlib <ver>` in their own
+                // builds, so `@available(SwiftStdlib 9999, *)` is byte-identical
+                // source across all three repos; only this per-build definition
+                // differs.
                 //
                 // VERSION is 9999: FilePath is a brand-new, non-back-deployable
                 // stdlib type, so its real ship version is unknown. 9999 is the
                 // honest "unreleased future" placeholder that both
                 // availability-macros.def and swift-system use for unshipped
-                // versions (NOT a back-deployment floor like macOS 10.15).
+                // versions (NOT a back-deployment floor like macOS 10.15). One
+                // mechanical `9999`→concrete-version sweep happens at ship time.
                 .enableExperimentalFeature(
-                    "AvailabilityMacro=FilePathTBD 9999:macOS 9999, iOS 9999, watchOS 9999, tvOS 9999, visionOS 9999"),
+                    "AvailabilityMacro=SwiftStdlib 9999:macOS 9999, iOS 9999, watchOS 9999, tvOS 9999, visionOS 9999"),
                 .define("FILEPATH_PACKAGE"),
                 .strictMemorySafety(),
-                .unsafeFlags(["-Werror", "StrictMemorySafety"])
+                .unsafeFlags(["-Werror", "StrictMemorySafety"]),
+                // Cascade stance 2a: this repo never ships, so availability
+                // enforcement protects nothing here; disable it so the honest
+                // 9999-mapped annotations compile. Real enforcement belongs to
+                // the eventual port-validation build against the stdlib tree.
+                .unsafeFlags(["-Xfrontend", "-disable-availability-checking"]),
             ]
         ),
         .executableTarget(
             name: "filepath-play",
-            dependencies: ["FilePath"]
+            dependencies: ["FilePath"],
+            swiftSettings: [
+                // Consumes FilePath's @available(SwiftStdlib 9999, *) surface;
+                // see the FilePath target for why enforcement is disabled here.
+                .unsafeFlags(["-Xfrontend", "-disable-availability-checking"]),
+            ]
         ),
         .testTarget(
             name: "FilePathTests",
-            dependencies: ["FilePath"]
+            dependencies: ["FilePath"],
+            swiftSettings: [
+                .unsafeFlags(["-Xfrontend", "-disable-availability-checking"]),
+            ]
         ),
     ]
 )

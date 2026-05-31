@@ -9,6 +9,7 @@
 
 extension FilePath {
   /// Represents an individual component of a file path.
+  @available(SwiftStdlib 9999, *)
   public struct Component: Sendable {
     internal var _path: FilePath
     internal var _range: Range<_SystemString.Index>
@@ -28,6 +29,7 @@ extension FilePath {
 
     /// Whether a component is a regular file or directory name, or a special
     /// directory `.` or `..`
+    @available(SwiftStdlib 9999, *)
     public enum Kind: Sendable, Equatable {
       case currentDirectory
       case parentDirectory
@@ -35,6 +37,7 @@ extension FilePath {
     }
 
     /// The kind of this component.
+    @available(SwiftStdlib 9999, *)
     public var kind: Kind {
       if _verbatimContext { return .regular }
       let s = _slice
@@ -48,9 +51,11 @@ extension FilePath {
 // MARK: - Component Hashable, Comparable, descriptions
 
 extension FilePath.Component: Hashable {
+  @available(SwiftStdlib 9999, *)
   public static func == (lhs: FilePath.Component, rhs: FilePath.Component) -> Bool {
     lhs._slice.elementsEqual(rhs._slice)
   }
+  @available(SwiftStdlib 9999, *)
   public func hash(into hasher: inout Hasher) {
     for c in _slice {
       hasher.combine(c)
@@ -59,12 +64,14 @@ extension FilePath.Component: Hashable {
 }
 
 extension FilePath.Component: Comparable {
+  @available(SwiftStdlib 9999, *)
   public static func < (lhs: FilePath.Component, rhs: FilePath.Component) -> Bool {
     lhs._slice.lexicographicallyPrecedes(rhs._slice)
   }
 }
 
 extension FilePath.Component: CustomStringConvertible, CustomDebugStringConvertible {
+  @available(SwiftStdlib 9999, *)
   public var description: String {
     unsafe _slice.withCodeUnits {
       unsafe $0.withMemoryRebound(to: FilePath._Encoding.CodeUnit.self) {
@@ -72,6 +79,7 @@ extension FilePath.Component: CustomStringConvertible, CustomDebugStringConverti
       }
     }
   }
+  @available(SwiftStdlib 9999, *)
   public var debugDescription: String {
     description.debugDescription
   }
@@ -82,6 +90,7 @@ extension FilePath.Component: ExpressibleByStringLiteral {
   ///
   /// Precondition: `stringLiteral` is non-empty and contains no `NUL`
   /// or directory separator.
+  @available(SwiftStdlib 9999, *)
   public init(stringLiteral: String) {
     guard let c = FilePath.Component(stringLiteral) else {
       fatalError(
@@ -95,6 +104,7 @@ extension FilePath.Component: ExpressibleByStringLiteral {
   ///
   /// Returns `nil` if `string` is empty or contains `NUL` or a
   /// directory separator.
+  @available(SwiftStdlib 9999, *)
   public init?(_ string: String) {
     guard !string.isEmpty else { return nil }
     guard !string.utf8.contains(0) else { return nil }
