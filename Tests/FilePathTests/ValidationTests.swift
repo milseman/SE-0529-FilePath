@@ -309,6 +309,131 @@ extension AllTests.ValidationTests {
     }
   }
 
+  // MARK: - Anchor.init? strictness vs FilePath.init? totality (Windows)
+  //
+  // `FilePath.Anchor.init?` is STRICT: a named anchor form must carry its
+  // name. It rejects incomplete UNC (no server / no share), empty device
+  // (`\\.\`), and empty verbatim (`\\?\`). `FilePath.init?` by contrast is
+  // total and coalesces these same inputs into a degraded anchor. These two
+  // tests pin both halves and the resulting divergence.
+
+  @Test
+  func anchorInitStrictRejectsIncompleteWindowsForms() {
+    withPlatform(.windows) {
+      // Named forms missing their name -> nil.
+      let incomplete: [String] = [
+        #"\\"#,         // incomplete UNC: no server, no share
+        #"\\server"#,   // incomplete UNC: server but no share
+        #"\\\server"#,  // 3+ backslashes -> `\` root + `server` component
+        #"\\."#,        // empty device: no device name
+        #"\\.\"#,       // empty device: no device name
+        #"\\?"#,        // empty verbatim: no component
+        #"\\?\"#,       // empty verbatim: no component
+      ]
+      for input in incomplete {
+        expectNil(FilePath.Anchor(input),
+          "Anchor.init? should reject \(input.debugDescription)")
+      }
+
+      // Populated named forms still construct and round-trip to themselves.
+      let named: [(input: String, printed: String)] = [
+        (#"\\server\share"#, #"\\server\share"#),
+        (#"\\.\pipe"#,       #"\\.\pipe"#),
+        (#"\\?\C:\"#,        #"\\?\C:\"#),
+        (#"\\?\pictures"#,   #"\\?\pictures"#),
+      ]
+      for (input, printed) in named {
+        let anchor = FilePath.Anchor(input)
+        expectNotNil(anchor,
+          "Anchor.init? should accept \(input.debugDescription)")
+        expectEqual(anchor?.description, printed,
+          "Anchor \(input.debugDescription) printed form")
+      }
+    }
+  }
+
+  @Test
+  func filePathStillCoalescesAnchorRejectedForms() {
+    withPlatform(.windows) {
+      // The inputs `Anchor.init?` rejects remain TOTAL under `FilePath.init?`,
+      // which coalesces each into its degraded shape. This is the deliberate
+      // divergence: FilePath stays total, Anchor is strict.
+
+      // Headline case: `\\\server\share` coalesces to a current-drive root
+      // with `server` and `share` as ordinary components, yet the strict
+      // Anchor initializer rejects the same string.
+      let triple: String = #"\\\server\share"#
+      expectNil(FilePath.Anchor(triple),
+        #"Anchor.init? rejects \\\server\share"#)
+      let p = FilePath(triple)
+      expectNotNil(p, #"FilePath.init? accepts \\\server\share"#)
+      expectEqual(p?.anchor?.description, #"\"#,
+        #"\\\server\share coalesces to anchor \"#)
+      expectEqual(p?.components.map(\.description) ?? [], ["server", "share"],
+        #"\\\server\share components"#)
+
+      // Every rejected anchor input still constructs a FilePath whose anchor
+      // is the coalesced/degraded form, with no relative components — while
+      // `Anchor.init?` rejects that very input.
+      let coalesced: [(input: String, anchor: String)] = [
+        (#"\\"#,       #"\\\"#),       // -> degraded 3-backslash root
+        (#"\\server"#, #"\\server\"#), // -> server with empty share
+        (#"\\."#,      #"\\.\"#),      // -> empty device
+        (#"\\.\"#,     #"\\.\"#),      // -> empty device
+        (#"\\?"#,      #"\\?\"#),      // -> empty verbatim
+        (#"\\?\"#,     #"\\?\"#),      // -> empty verbatim
+      ]
+      for (input, anchor) in coalesced {
+        let fp = FilePath(input)
+        expectNotNil(fp,
+          "FilePath.init? should accept \(input.debugDescription)")
+        expectEqual(fp?.anchor?.description, anchor,
+          "FilePath \(input.debugDescription) coalesced anchor")
+        expectTrue(fp?.components.isEmpty ?? false,
+          "FilePath \(input.debugDescription) should have no components")
+        expectNil(FilePath.Anchor(input),
+          "Anchor.init? should reject \(input.debugDescription)")
+      }
+    }
+  }
+
+  // MARK: - Verbatim-UNC trailing separator is not synthesized (Windows)
+
+  @Test
+  func verbatimUNCTrailingSeparatorNotSynthesized() {
+    withPlatform(.windows) {
+      // A verbatim-UNC root with NO trailing separator must not have one
+      // synthesized: `\\?\UNC\s\h` stores verbatim with hasTrailingSeparator
+      // false, while `\\?\UNC\s\h\` has a genuine trailing separator. The
+      // trailing separator is significant, so the two are not equal.
+      let noSep: String = #"\\?\UNC\s\h"#
+      let withSep: String = #"\\?\UNC\s\h\"#
+
+      let a = FilePath(noSep)!
+      expectEqual(a.anchor?.description, #"\\?\UNC\s\h"#)
+      expectTrue(a.components.isEmpty)
+      expectFalse(a.hasTrailingSeparator,
+        #"\\?\UNC\s\h should have no trailing separator"#)
+      expectEqual(a.description, #"\\?\UNC\s\h"#,
+        #"\\?\UNC\s\h must be stored without an added backslash"#)
+
+      let b = FilePath(withSep)!
+      expectEqual(b.anchor?.description, #"\\?\UNC\s\h"#)
+      expectTrue(b.components.isEmpty)
+      expectTrue(b.hasTrailingSeparator,
+        #"\\?\UNC\s\h\ should have a trailing separator"#)
+
+      expectNotEqual(a, b,
+        #"\\?\UNC\s\h must not equal \\?\UNC\s\h\"#)
+
+      // A populated verbatim-UNC path is unaffected by the fix.
+      let fooInput: String = #"\\?\UNC\server\share\foo"#
+      let c = FilePath(fooInput)!
+      expectEqual(c.anchor?.description, #"\\?\UNC\server\share"#)
+      expectEqual(c.components.map(\.description), ["foo"])
+    }
+  }
+
   // MARK: - isAbsolute (isRelative removed)
 
   @Test

@@ -20,6 +20,10 @@ Several consequences follow, all intended and mutually consistent:
 
 This emergent model is the chosen design. The only coherent alternative — aggressively trapping or rejecting degenerate inputs — has its own problems and was not chosen: **`FilePath` rejects only `NUL`.**
 
+### `Anchor.init?` is strict
+
+That totality is a property of `FilePath.init?` specifically. The typed `FilePath.Anchor.init?` is strict: a named anchor form must carry its name, so it returns `nil` for incomplete UNC (`\\`, `\\server`), empty device (`\\.\`), and empty verbatim (`\\?\`). `FilePath.init?` coalesces those same inputs into a degraded anchor and accepts them — `\\\server\share` decomposes to anchor `\` with components `server` and `share` — so the two construction paths diverge by design. This is stricter than Rust's `std::path`, which accepts empty verbatim and empty device prefixes. The divergence is deliberate: here verbatim is a behavioral mode (inside `\\?\`, `.` and `..` are literal names and `/` is a legal filename byte), so an empty-named verbatim anchor would switch on that mode with no volume attached, which is not allowed as a typed `Anchor` value.
+
 ## Try it out
 
 ```

@@ -371,8 +371,16 @@ extension _SystemString {
       // UNC sub-form only for verbatim (\\?\UNC\...), not device (\\.\UNC\...)
       if sigil == ._question, lexer.eatUNC() {
         expectBackslash()
-        expectComponent()
-        expectComponent()
+        expectComponent()          // server: its separator is structural
+        // Share: consume a trailing separator only if one is actually
+        // present — never synthesize one. The share can be the final
+        // element of a verbatim-UNC root with no trailing separator
+        // (\\?\UNC\s\h); forcing a backslash here would store a phantom
+        // trailing separator and make it compare equal to \\?\UNC\s\h\.
+        // Mirrors parseUNC's `_ = lexer.eatBackslash()` and the
+        // `!lexer.isEmpty`-guarded device path.
+        _ = lexer.eatComponent()
+        _ = lexer.eatBackslash()
         return lexer.current
       }
       // Check for drive letter device: \\.\C:\ or \\?\C:\. A drive

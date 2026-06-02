@@ -139,6 +139,60 @@ extension FilePath.Anchor: ExpressibleByStringLiteral {
     guard path.components.isEmpty && !path.hasTrailingSeparator else {
       return nil
     }
+    // A named anchor form must carry its name. `FilePath.init?` is total
+    // and coalesces the degenerate Windows roots — incomplete UNC (`\\`,
+    // `\\server`), empty device (`\\.`/`\\.\`), and empty verbatim
+    // (`\\?`/`\\?\`) — into a degraded anchor, but as a typed `Anchor`
+    // value they name a volume/device/share that isn't there, so the
+    // failable `Anchor` initializer rejects them. This strictness lives
+    // here, in anchor validation only; `FilePath` decomposition of these
+    // inputs is unchanged.
+    if _isWindows && _isIncompleteWindowsNamedAnchor(anchor._slice) {
+      return nil
+    }
     self = anchor
   }
+}
+
+/// Returns `true` when `anchorBytes` is a Windows UNC/device/verbatim
+/// anchor form that is missing its name: incomplete UNC (`\\`, `\\server`),
+/// empty device (`\\.\`), or empty verbatim (`\\?\`).
+///
+/// This is the strictness predicate for `FilePath.Anchor.init?`. The walk is
+/// local to anchor validation and shares nothing with the construction
+/// parser (`_parseWindowsRootInternal` and friends), which must keep
+/// coalescing these forms unchanged for `FilePath`.
+///
+/// A named form requires its name: UNC needs a non-empty server AND a
+/// non-empty share; device (`\\.\`) needs a non-empty device name; verbatim
+/// (`\\?\`) needs a non-empty component after the prefix. Traditional roots
+/// (`\`, `C:`, `C:\`) carry no separate name and are never rejected here.
+private func _isIncompleteWindowsNamedAnchor(
+  _ anchorBytes: some Collection<FilePath.CodeUnit>
+) -> Bool {
+  let bytes = Array(anchorBytes)
+  // A named form begins with the two-backslash UNC/device/verbatim prefix.
+  // One leading `\` is the bare current-drive root, and `C:` / `C:\` carry a
+  // drive; none of those are a name-bearing form with the name missing.
+  guard bytes.count >= 2,
+        bytes[0] == ._backslash, bytes[1] == ._backslash else {
+    return false
+  }
+  var i = 2
+  if i < bytes.count, bytes[i] == ._dot || bytes[i] == ._question {
+    // Device (`\\.\<device>`) or verbatim (`\\?\<component>`). Separator
+    // coalescing always stores the prefix backslash (`\\.\` / `\\?\`), so
+    // whatever follows it is the name. An empty name => incomplete.
+    i += 1
+    guard i < bytes.count, bytes[i] == ._backslash else { return true }
+    i += 1
+    return i >= bytes.count
+  }
+  // UNC (`\\server\share`): require a non-empty server AND a non-empty share.
+  let serverStart = i
+  while i < bytes.count, bytes[i] != ._backslash { i += 1 }
+  if i == serverStart { return true }         // empty server
+  guard i < bytes.count else { return true }  // server but no share at all
+  i += 1                                       // skip server/share separator
+  return i >= bytes.count                      // empty share
 }
