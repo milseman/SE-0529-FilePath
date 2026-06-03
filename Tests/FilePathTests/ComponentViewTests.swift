@@ -10,60 +10,40 @@
 import Testing
 @testable import FilePath
 
-// NOT migrated onto the TestSupport seam (intentional). This file has ~102
-// tests / ~239 `#expect` sites / ~104 inline platform-sets; a by-hand migration
-// is high-churn and high-regression-risk for an optional refactor that changes
-// no behavior, so per "leave awkward spots and note them" it is left as-is. The
-// seam is already proven on the table-driven path (DecompositionTests) and
-// across all three platforms (ValidationTests), plus the new Equality /
-// StringBridging / Reconstruction suites. When this file is eventually migrated,
-// `makePath`/`printed` (which take a `platform:` argument and return a value for
-// use outside any closure) are the spots to rework first.
+// PARTLY migrated onto the TestSupport seam. The platform-INDEPENDENT tests no
+// longer pin the runtime platform: they assert through `universal(...)`
+// (TestSupport.swift), which spells an expected path in the built platform's
+// separator, so each runs unchanged on whatever platform is built. The
+// platform-SPECIFIC tests (Windows drive/UNC/verbatim, Darwin magic anchors /
+// resource forks) still set `FilePath.REVIEW_ONLY_platform` directly and assert
+// exact strings; the eventual `#if os(...)` fold turns those platform-sets into
+// compile-time guards. The assertions themselves are still direct `#expect`
+// rather than the seam helpers — a deliberately deferred, behavior-neutral
+// migration. The seam is already proven on the table-driven path
+// (DecompositionTests), across all three platforms (ValidationTests), and in the
+// Equality / StringBridging / Reconstruction suites.
 
 extension AllTests.ComponentViewTests {
-
-  // MARK: - Helpers
-
-  /// Set platform, build a FilePath, and return it
-  func makePath(
-    _ str: String, platform: REVIEW_ONLY_Platform
-  ) -> FilePath {
-    FilePath.REVIEW_ONLY_platform = platform
-    return FilePath(str)!
-  }
-
-  func components(
-    _ str: String, platform: REVIEW_ONLY_Platform
-  ) -> [String] {
-    makePath(str, platform: platform).components.map(\.description)
-  }
-
-  func printed(
-    _ path: FilePath, platform: REVIEW_ONLY_Platform
-  ) -> String {
-    FilePath.REVIEW_ONLY_platform = platform
-    return path.description
-  }
 
   // MARK: - Basic collection properties
 
   @Test
   func emptyPath() {
-    for platform: REVIEW_ONLY_Platform in [.linux, .darwin, .windows] {
-      let path = makePath("", platform: platform)
-      #expect(path.components.isEmpty)
-      #expect(path.components.count == 0)
-      #expect(path.components.startIndex == path.components.endIndex)
-    }
+    let path = FilePath("")
+    #expect(path.components.isEmpty)
+    #expect(path.components.count == 0)
+    #expect(path.components.startIndex == path.components.endIndex)
   }
 
   @Test
   func rootOnlyHasNoComponents() {
-    FilePath.REVIEW_ONLY_platform = .linux
     let root = FilePath("/")
     #expect(root.components.isEmpty)
     #expect(root.anchor != nil)
+  }
 
+  @Test
+  func rootOnlyHasNoComponentsWindows() {
     FilePath.REVIEW_ONLY_platform = .windows
     let winRoot = FilePath(#"C:\"#)
     #expect(winRoot.components.isEmpty)
@@ -72,7 +52,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func indexTraversal() {
-    FilePath.REVIEW_ONLY_platform = .linux
     let path = FilePath("/usr/local/bin")
     let cv = path.components
     #expect(cv.count == 3)
@@ -97,27 +76,24 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func appendToRelative() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b")
     path.components.append("c")
 
-    #expect(path.description == "a/b/c")
+    #expect(path.description == universal("a/b/c"))
     #expect(path.components.map(\.description) == ["a", "b", "c"])
   }
 
   @Test
   func appendToAbsolute() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr")
     path.components.append("local")
 
-    #expect(path.description == "/usr/local")
-    #expect(path.anchor?.description == "/")
+    #expect(path.description == universal("/usr/local"))
+    #expect(path.anchor?.description == universal("/"))
   }
 
   @Test
   func appendToEmpty() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("")
     path.components.append("hello")
 
@@ -126,99 +102,89 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func appendToRootOnly() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/")
     path.components.append("usr")
 
-    #expect(path.description == "/usr")
-    #expect(path.anchor?.description == "/")
+    #expect(path.description == universal("/usr"))
+    #expect(path.anchor?.description == universal("/"))
   }
 
   @Test
   func appendContentsOf() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr")
     path.components.append(contentsOf: ["local", "bin"] as [FilePath.Component])
 
-    #expect(path.description == "/usr/local/bin")
+    #expect(path.description == universal("/usr/local/bin"))
   }
 
   // MARK: - insert
 
   @Test
   func insertAtBeginning() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/local/bin")
     path.components.insert("usr", at: path.components.idx(0))
 
-    #expect(path.description == "/usr/local/bin")
+    #expect(path.description == universal("/usr/local/bin"))
   }
 
   @Test
   func insertInMiddle() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/bin")
     path.components.insert("local", at: path.components.idx(1))
 
-    #expect(path.description == "/usr/local/bin")
+    #expect(path.description == universal("/usr/local/bin"))
   }
 
   @Test
   func insertAtEnd() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local")
     path.components.insert("bin", at: path.components.endIndex)
 
-    #expect(path.description == "/usr/local/bin")
+    #expect(path.description == universal("/usr/local/bin"))
   }
 
   // MARK: - remove
 
   @Test
   func removeFirst() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
     path.components.removeFirst()
 
-    #expect(path.description == "/local/bin")
-    #expect(path.anchor?.description == "/")
+    #expect(path.description == universal("/local/bin"))
+    #expect(path.anchor?.description == universal("/"))
   }
 
   @Test
   func removeLast() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
     path.components.removeLast()
 
-    #expect(path.description == "/usr/local")
+    #expect(path.description == universal("/usr/local"))
   }
 
   @Test
   func removeAtIndex() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
     path.components.remove(at: path.components.idx(1))
 
-    #expect(path.description == "/usr/bin")
+    #expect(path.description == universal("/usr/bin"))
   }
 
   @Test
   func removeAllComponents() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local")
     var cv = path.components
     cv.removeAll()
     path.components = cv
 
     // Anchor is preserved, components are gone
-    #expect(path.description == "/")
-    #expect(path.anchor?.description == "/")
+    #expect(path.description == universal("/"))
+    #expect(path.anchor?.description == universal("/"))
     #expect(path.components.isEmpty)
   }
 
   @Test
   func removeAllFromRelative() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c")
     path.components.removeAll()
 
@@ -230,46 +196,42 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func replaceMiddle() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
     path.components.replaceSubrange(
       path.components.range(1..<2),
       with: ["share", "man"] as [FilePath.Component])
 
-    #expect(path.description == "/usr/share/man/bin")
+    #expect(path.description == universal("/usr/share/man/bin"))
   }
 
   @Test
   func replaceAll() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/old/path")
     path.components.replaceSubrange(
       path.components.startIndex..<path.components.endIndex,
       with: ["new", "path"] as [FilePath.Component])
 
-    #expect(path.description == "/new/path")
-    #expect(path.anchor?.description == "/")
+    #expect(path.description == universal("/new/path"))
+    #expect(path.anchor?.description == universal("/"))
   }
 
   @Test
   func replaceWithEmpty() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
     path.components.replaceSubrange(
       path.components.range(1..<3), with: [] as [FilePath.Component])
 
-    #expect(path.description == "/usr")
+    #expect(path.description == universal("/usr"))
   }
 
   @Test
   func replaceEmptyRange() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/bin")
     path.components.replaceSubrange(
       path.components.range(1..<1),
       with: ["local"] as [FilePath.Component])
 
-    #expect(path.description == "/usr/local/bin")
+    #expect(path.description == universal("/usr/local/bin"))
   }
 
   // MARK: - Normalization interactions
@@ -278,7 +240,6 @@ extension AllTests.ComponentViewTests {
   func dotComponentInsertion() {
     // Component.init normalizes through FilePath, so "." as a
     // single component is `.currentDirectory` kind
-    FilePath.REVIEW_ONLY_platform = .linux
     let dot: FilePath.Component = "."
     #expect(dot.kind == .currentDirectory)
 
@@ -288,7 +249,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func appendDotDot() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local")
     var cv = path.components
     cv.append("..")
@@ -296,26 +256,24 @@ extension AllTests.ComponentViewTests {
 
     // ".." is preserved as a component (no lexical collapsing)
     #expect(path.components.map(\.description) == ["usr", "local", ".."])
-    #expect(path.description == "/usr/local/..")
+    #expect(path.description == universal("/usr/local/.."))
   }
 
   @Test
   func appendDotToRelative() {
     // With the view-on-storage architecture, appending a "." component
     // directly mutates storage without renormalization. The dot persists.
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b")
     path.components.append(".")
 
     #expect(path.components.map(\.description) == ["a", "b", "."])
-    #expect(path.description == "a/b/.")
+    #expect(path.description == universal("a/b/."))
   }
 
   @Test
   func componentInitNormalizesInput() {
     // Component.init?(_:) goes through FilePath, which normalizes.
     // So Component("a//b") is nil (normalizes to multi-component path)
-    FilePath.REVIEW_ONLY_platform = .linux
     let str1: String = "a//b"
     let multiComp: FilePath.Component? = .init(str1)
     #expect(multiComp == nil)
@@ -392,7 +350,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func anchorSurvivesMutation() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
     let originalAnchor = path.anchor
 
@@ -402,12 +359,11 @@ extension AllTests.ComponentViewTests {
     path.components = cv
 
     #expect(path.anchor == originalAnchor)
-    #expect(path.description == "/etc")
+    #expect(path.description == universal("/etc"))
   }
 
   @Test
   func noAnchorSurvivesMutation() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c")
 
     var cv = path.components
@@ -415,7 +371,7 @@ extension AllTests.ComponentViewTests {
     path.components = cv
 
     #expect(path.anchor == nil)
-    #expect(path.description == "x/y")
+    #expect(path.description == universal("x/y"))
   }
 
   @Test
@@ -437,7 +393,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func componentViewEquality() {
-    FilePath.REVIEW_ONLY_platform = .linux
     let a = FilePath("/usr/local/bin")
     let b = FilePath("/usr/local/bin")
     #expect(a.components == b.components)
@@ -448,7 +403,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func componentViewOrdering() {
-    FilePath.REVIEW_ONLY_platform = .linux
     let a = FilePath("a/b").components
     let b = FilePath("a/c").components
     let c = FilePath("a/b/c").components
@@ -460,7 +414,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func filter() {
-    FilePath.REVIEW_ONLY_platform = .linux
     let path = FilePath("a/b/c/d")
     let even = path.components.enumerated()
       .filter { $0.offset % 2 == 0 }
@@ -470,7 +423,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func map() {
-    FilePath.REVIEW_ONLY_platform = .linux
     let path = FilePath("/usr/local/bin")
     let names = path.components.map(\.description)
     #expect(names == ["usr", "local", "bin"])
@@ -478,7 +430,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func reversed() {
-    FilePath.REVIEW_ONLY_platform = .linux
     let path = FilePath("a/b/c")
     let rev = path.components.reversed().map(\.description)
     #expect(rev == ["c", "b", "a"])
@@ -486,31 +437,28 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func prefix() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin/tool")
     let first2 = Array(path.components.prefix(2))
     path.components.replaceSubrange(
       path.components.startIndex..<path.components.endIndex, with: first2)
 
-    #expect(path.description == "/usr/local")
+    #expect(path.description == universal("/usr/local"))
   }
 
   @Test
   func dropFirst() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/usr/local/bin")
     let tail = Array(path.components.dropFirst())
     path.components.replaceSubrange(
       path.components.startIndex..<path.components.endIndex, with: tail)
 
-    #expect(path.description == "/local/bin")
+    #expect(path.description == universal("/local/bin"))
   }
 
   // MARK: - Round-trip through ComponentView init()
 
   @Test
   func buildFromScratch() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var cv = FilePath.ComponentView()
     cv.append("usr")
     cv.append("local")
@@ -518,19 +466,18 @@ extension AllTests.ComponentViewTests {
 
     var path = FilePath("/")
     path.components = cv
-    #expect(path.description == "/usr/local/bin")
+    #expect(path.description == universal("/usr/local/bin"))
   }
 
   @Test
   func buildRelativeFromScratch() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var cv = FilePath.ComponentView()
     cv.append("src")
     cv.append("main.swift")
 
     var path = FilePath()
     path.components = cv
-    #expect(path.description == "src/main.swift")
+    #expect(path.description == universal("src/main.swift"))
   }
 
   @Test
@@ -550,7 +497,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func singleComponentPath() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("hello")
     #expect(path.components.count == 1)
     #expect(path.components.first?.description == "hello")
@@ -561,7 +507,6 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func multipleAppends() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/")
 
     for name: String in ["a", "b", "c", "d", "e"] {
@@ -569,25 +514,22 @@ extension AllTests.ComponentViewTests {
     }
 
     #expect(path.components.count == 5)
-    #expect(path.description == "/a/b/c/d/e")
+    #expect(path.description == universal("/a/b/c/d/e"))
   }
 
   @Test
   func replaceEntireRelativeKeepsAnchor() {
-    for platform: REVIEW_ONLY_Platform in [.linux, .darwin] {
-      FilePath.REVIEW_ONLY_platform = platform
-      var path = FilePath("/old/path/here")
-      let anchor = path.anchor
+    var path = FilePath("/old/path/here")
+    let anchor = path.anchor
 
-      path.components.replaceSubrange(
-        path.components.startIndex..<path.components.endIndex, with: [
-          "completely" as FilePath.Component,
-          "new" as FilePath.Component,
-        ])
+    path.components.replaceSubrange(
+      path.components.startIndex..<path.components.endIndex, with: [
+        "completely" as FilePath.Component,
+        "new" as FilePath.Component,
+      ])
 
-      #expect(path.anchor == anchor)
-      #expect(path.components.map(\.description) == ["completely", "new"])
-    }
+    #expect(path.anchor == anchor)
+    #expect(path.components.map(\.description) == ["completely", "new"])
   }
 
   // MARK: - Suffix semantics on mutation
@@ -596,19 +538,17 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func trailingSepStrippedOnRemoveLast() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c/")
     #expect(path.hasTrailingSeparator)
 
     path.components.removeLast()
 
     #expect(!path.hasTrailingSeparator)
-    #expect(path.description == "a/b")
+    #expect(path.description == universal("a/b"))
   }
 
   @Test
   func trailingSepStrippedOnReplaceLast() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c/")
     #expect(path.hasTrailingSeparator)
 
@@ -617,12 +557,11 @@ extension AllTests.ComponentViewTests {
       with: ["d" as FilePath.Component])
 
     #expect(!path.hasTrailingSeparator)
-    #expect(path.description == "a/b/d")
+    #expect(path.description == universal("a/b/d"))
   }
 
   @Test
   func trailingSepStrippedOnRemoveAll() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c/")
     #expect(path.hasTrailingSeparator)
 
@@ -634,14 +573,13 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func trailingSepStrippedOnRemoveAllAbsolute() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/a/b/c/")
     #expect(path.hasTrailingSeparator)
 
     path.components.removeAll()
 
     #expect(!path.hasTrailingSeparator)
-    #expect(path.description == "/")
+    #expect(path.description == universal("/"))
   }
 
   @Test
@@ -660,19 +598,17 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func trailingSepPreservedOnInsertFirst() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c/")
     #expect(path.hasTrailingSeparator)
 
     path.components.insert("z", at: path.components.idx(0))
 
     #expect(path.hasTrailingSeparator)
-    #expect(path.description == "z/a/b/c/")
+    #expect(path.description == universal("z/a/b/c/"))
   }
 
   @Test
   func trailingSepPreservedOnReplaceNonLast() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c/")
 
     path.components.replaceSubrange(
@@ -680,40 +616,37 @@ extension AllTests.ComponentViewTests {
       with: ["x" as FilePath.Component])
 
     #expect(path.hasTrailingSeparator)
-    #expect(path.description == "x/b/c/")
+    #expect(path.description == universal("x/b/c/"))
   }
 
   @Test
   func trailingSepPreservedOnRemoveFirst() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c/")
 
     path.components.removeFirst()
 
     #expect(path.hasTrailingSeparator)
-    #expect(path.description == "b/c/")
+    #expect(path.description == universal("b/c/"))
   }
 
   @Test
   func trailingSepPreservedOnInsertMiddle() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/a/c/")
 
     path.components.insert("b", at: path.components.idx(1))
 
     #expect(path.hasTrailingSeparator)
-    #expect(path.description == "/a/b/c/")
+    #expect(path.description == universal("/a/b/c/"))
   }
 
   @Test
   func trailingSepPreservedOnNoChange() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/c/")
     let cv = path.components
     path.components = cv
 
     #expect(path.hasTrailingSeparator)
-    #expect(path.description == "a/b/c/")
+    #expect(path.description == universal("a/b/c/"))
   }
 
   @Test
@@ -735,26 +668,24 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func trailingSepOnAppend() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b/")
     #expect(path.hasTrailingSeparator)
 
     path.components.append("c")
 
     #expect(!path.hasTrailingSeparator)
-    #expect(path.description == "a/b/c")
+    #expect(path.description == universal("a/b/c"))
   }
 
   @Test
   func trailingSepOnAppendContentsOf() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/dir/")
     #expect(path.hasTrailingSeparator)
 
     path.components.append(contentsOf: ["sub", "file"] as [FilePath.Component])
 
     #expect(!path.hasTrailingSeparator)
-    #expect(path.description == "/dir/sub/file")
+    #expect(path.description == universal("/dir/sub/file"))
   }
 
   // -- Resource fork: strip on remove/replace (Darwin) --
@@ -852,22 +783,20 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func trailingSepStrippedOnRemoveLastEvenWithEqualNeighbor() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/a/b/b/")
     path.components.removeLast()
     #expect(!path.hasTrailingSeparator)
-    #expect(path.description == "/a/b")
+    #expect(path.description == universal("/a/b"))
   }
 
   @Test
   func replaceAllDropsSuffixEvenWhenLastByteEqual() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/a/b/c/")
     path.components.replaceSubrange(
       path.components.startIndex..<path.components.endIndex,
       with: ["x", "y", "c"] as [FilePath.Component])
     #expect(!path.hasTrailingSeparator)
-    #expect(path.description == "/x/y/c")
+    #expect(path.description == universal("/x/y/c"))
   }
 
   @Test
@@ -1030,21 +959,19 @@ extension AllTests.ComponentViewTests {
 
   @Test
   func appendAfterTrailingSepAbsorbs() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/foo/")
     #expect(path.hasTrailingSeparator)
     path.components.append("bar")
-    #expect(path.description == "/foo/bar")
+    #expect(path.description == universal("/foo/bar"))
     #expect(!path.hasTrailingSeparator)
   }
 
   @Test
   func replaceSubrangeLastWithEmptyMatchesRemoveLast() {
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("/a/b/c")
     let last = path.components.index(before: path.components.endIndex)
     path.components.replaceSubrange(last..<path.components.endIndex, with: [])
-    #expect(path.description == "/a/b")
+    #expect(path.description == universal("/a/b"))
   }
 
   @Test
@@ -1086,7 +1013,6 @@ extension AllTests.ComponentViewTests {
   func assignAnchoredCvOntoAnchorlessKeepsAnchorless() {
     // cv has anchor, self doesn't. Splice copies only cv's component
     // bytes; self stays anchorless.
-    FilePath.REVIEW_ONLY_platform = .linux
     var path = FilePath("a/b")
     let cv = FilePath("/foo").components
     path.components = cv

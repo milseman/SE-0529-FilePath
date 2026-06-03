@@ -8,6 +8,7 @@
 */
 
 import Testing
+import Foundation
 @testable import FilePath
 
 // ===========================================================================
@@ -153,4 +154,48 @@ func forEachPlatform(
     FilePath.REVIEW_ONLY_platform = p
     try body(p)
   }
+}
+
+// MARK: - Universal path literals
+
+private var universalRootDescription: String { _isWindows ? "\\" : "/" }
+
+/// Translates a path string written with `/` as the canonical separator into
+/// the built platform's spelling, so that platform-INDEPENDENT tests can be
+/// written once and run unchanged everywhere. On a Windows build,
+/// `universal("/usr/local/bin")` returns `\usr\local\bin`; elsewhere it returns
+/// the input unchanged. Use it to build expected strings:
+///
+///     expectEqual(path.description, universal("/usr/local/bin"))
+///     expectEqual(path.anchor?.description, universal("/"))
+///
+/// This is ONLY valid for paths that are universal modulo the separator byte:
+/// relative paths and plain-root paths whose only platform-varying element is
+/// the separator. It is NOT for platform-specific anchor forms (Windows drive
+/// `C:`, UNC `\\server\share`, verbatim `\\?\…`, Darwin magic anchors
+/// `/.vol/…`, `/.nofollow/…`, `/.resolve/…`), which render in ways a separator
+/// swap cannot express; assert those with exact strings in a platform-specific
+/// test.
+///
+/// Traps if the literal is not universal: if it contains a backslash (the
+/// author hand-spelled a platform separator), or if it parses to a
+/// non-plain-root anchor. A trap means the literal was written for the wrong
+/// helper, not that the code under test is wrong.
+func universal(_ canonicalSlashForm: String) -> String {
+  precondition(
+    !canonicalSlashForm.contains("\\"),
+    "universal(): literal contains a backslash; write it with '/' as the "
+    + "canonical separator, or use an exact string in a platform-specific "
+    + "test: \(canonicalSlashForm)")
+  let parsed = FilePath(canonicalSlashForm)
+  if let anchor = parsed?.anchor {
+    precondition(
+      anchor.description == universalRootDescription,
+      "universal(): literal has a platform-specific anchor "
+      + "(\(anchor.description)); it is not universal modulo separator. Use an "
+      + "exact string in a platform-specific test: \(canonicalSlashForm)")
+  }
+  return _isWindows
+    ? canonicalSlashForm.replacingOccurrences(of: "/", with: "\\")
+    : canonicalSlashForm
 }

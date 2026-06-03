@@ -65,13 +65,13 @@ The full public surface described in the proposal:
 - Reconstruction — `init(anchor:_:hasTrailingSeparator:)`, `init(anchor:_:resourceFork:)`
 - String bridging — `String.init(decoding:)`, `String.init?(validating:)`, `description`, `debugDescription`
 - Equality / comparison — `Hashable`, `Comparable` on all types
-- Code unit access — `withCodeUnits(_:)` (closure-based pointer + count, for C interop), `init?(codeUnits:)` (closure-based; `Span`-based API stubbed)
+- Code unit access — `withCodeUnits(_:)` (closure-based pointer + count, for C interop); `Span`-based byte access: `codeUnits` getters on `FilePath`, `Component`, `Anchor`, and `ComponentView` (plus `nullTerminatedCodeUnits` on `FilePath`), and `init?(codeUnits:)` on `FilePath` and `Component`
 - Platform switching — `REVIEW_ONLY_Platform`, `REVIEW_ONLY_platform` static var
 
 ## What's stubbed
 
 - **`resolve()`** — `preconditionFailure("not yet implemented")`. Resolution requires filesystem access; semantics vary by platform.
-- **`Span`-based APIs** — Swift 6.2 doesn't support the lifetime annotations needed for `Span` returns in package code. Closure-based alternatives (`withCodeUnits`) are provided.
+- **`OutputSpan`-based `init(capacity:initializingCodeUnitsWith:)`** — stubbed; `OutputSpan` requires experimental features not enabled in this build. The read-side `Span` API (`codeUnits` / `nullTerminatedCodeUnits` / `init?(codeUnits:)`) *is* implemented, via the `Lifetimes` experimental feature.
 - **`Component.init?(verbatim:)`** — Windows-only; not yet implemented in this cross-platform reference. This initializer exists to construct components containing `/` (a legal filename character inside `\\?\` paths).
 
 ## Open proposal questions
