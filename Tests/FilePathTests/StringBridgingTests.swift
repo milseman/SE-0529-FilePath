@@ -35,13 +35,13 @@ extension AllTests.StringBridgingTests {
   // MARK: - codeUnits init path (mirrors ValidationTests)
 
   private func filePath(fromCodeUnits units: [FilePath.CodeUnit]) -> FilePath? {
-    units.withUnsafeBufferPointer { FilePath(codeUnits: $0) }
+    FilePath(codeUnits: units.span)
   }
 
   private func component(
     fromCodeUnits units: [FilePath.CodeUnit]
   ) -> FilePath.Component? {
-    units.withUnsafeBufferPointer { FilePath.Component(codeUnits: $0) }
+    FilePath.Component(codeUnits: units.span)
   }
 
   // MARK: - Well-formed round-trips

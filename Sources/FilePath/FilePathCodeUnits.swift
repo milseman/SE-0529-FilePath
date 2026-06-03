@@ -52,29 +52,57 @@ extension FilePath {
   }
 }
 
-// MARK: - Code unit access (Span stand-ins)
+// MARK: - Code unit access (Span)
 
-// NOTE: The proposal specifies `var codeUnits: Span<CodeUnit>` on
-// FilePath, Component, Anchor, and ComponentView (and additionally
-// `var nullTerminatedCodeUnits` on FilePath).  Span properties require
-// lifetime annotations not available without experimental features, so
-// the buffer-based `withCodeUnits` methods below stand in for them on
-// Component, Anchor, and ComponentView.
+// The proposal specifies two SEPARATE forms of byte access, both present:
 //
-// FilePath's own `var codeUnits` / `var nullTerminatedCodeUnits` are
-// subsumed by the proposal's `withCodeUnits(_:)` C-interop method above,
-// which hands back a null-terminated pointer plus the code-unit count.
+//   1. `withCodeUnits(_:)` above — closure-based, hands back a
+//      null-terminated `UnsafePointer` plus the code-unit count, for C
+//      interop (tracks `String.withCString`). FilePath only.
+//   2. `var codeUnits: Span<CodeUnit>` on FilePath, Component, Anchor, and
+//      ComponentView, plus `var nullTerminatedCodeUnits` on FilePath — safe,
+//      borrowed, direct byte access.
+//
+// These are NOT subsumed by one another: the Span getters are the proposal's
+// Span surface and coexist with the C-interop `withCodeUnits(_:)`.
+//
+// The Span getters borrow `_SystemString.nullTerminatedStorage` via its
+// `.span` (see `_span` / `_nullTerminatedSpan` in FilePathSystemString.swift),
+// sub-extracted to each type's byte range. They are computed getters on
+// Escapable types, so per SE-0456 the borrow on `self` is inferred and no
+// `@_lifetime` annotation is required. Enabled by
+// `.enableExperimentalFeature("Lifetimes")` in Package.swift. Span access is
+// safe, so the bodies carry no `unsafe` expressions under StrictMemorySafety.
 
 extension FilePath {
-  /// Creates a file path from a buffer of platform code units.
+  /// A span of the platform code units comprising this path, not
+  /// including the null terminator.
+  @available(SwiftStdlib 9999, *)
+  public var codeUnits: Span<FilePath.CodeUnit> {
+    _storage._span
+  }
+
+  /// A span of the platform code units comprising this path, including
+  /// the trailing null terminator as its final element.
+  @available(SwiftStdlib 9999, *)
+  public var nullTerminatedCodeUnits: Span<FilePath.CodeUnit> {
+    _storage._nullTerminatedSpan
+  }
+
+  /// Creates a file path from a span of platform code units.
   ///
-  /// The buffer should not include a null terminator. Returns `nil`
-  /// if the buffer contains `NUL`, which is not a valid path byte
+  /// The span should not include a null terminator. Returns `nil`
+  /// if the span contains `NUL`, which is not a valid path byte
   /// on any supported platform.
   @available(SwiftStdlib 9999, *)
-  public init?(codeUnits: UnsafeBufferPointer<CodeUnit>) {
-    var chars = unsafe Array(codeUnits)
-    guard !chars.contains(._null) else { return nil }
+  public init?(codeUnits: Span<CodeUnit>) {
+    var chars = [FilePath.CodeUnit]()
+    chars.reserveCapacity(codeUnits.count + 1)
+    for i in codeUnits.indices {
+      let c = codeUnits[i]
+      guard c != ._null else { return nil }
+      chars.append(c)
+    }
     chars.append(._null)
     let str = _SystemString(nullTerminated: chars)
     self.init(normalizing: str)
@@ -93,25 +121,26 @@ extension FilePath {
 }
 
 extension FilePath.Component {
-  /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
-  ///
-  /// Access the code units of this component.
+  /// A span of the platform code units comprising this component.
   @available(SwiftStdlib 9999, *)
-  public func withCodeUnits<T>(
-    _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
-  ) rethrows -> T {
-    try unsafe _slice.withCodeUnits(body)
+  public var codeUnits: Span<FilePath.CodeUnit> {
+    _path._storage._nullTerminatedSpan.extracting(_range)
   }
 
-  /// Creates a file path component from a buffer of platform code units.
+  /// Creates a file path component from a span of platform code units.
   ///
   /// Returns `nil` if the code units are empty, contain `NUL`, or are
   /// otherwise invalid (e.g. contain more than one component).
   @available(SwiftStdlib 9999, *)
-  public init?(codeUnits: UnsafeBufferPointer<FilePath.CodeUnit>) {
-    guard codeUnits.count > 0 else { return nil }
-    let chars = unsafe Array(codeUnits)
-    guard !chars.contains(._null) else { return nil }
+  public init?(codeUnits: Span<FilePath.CodeUnit>) {
+    guard !codeUnits.isEmpty else { return nil }
+    var chars = [FilePath.CodeUnit]()
+    chars.reserveCapacity(codeUnits.count)
+    for i in codeUnits.indices {
+      let c = codeUnits[i]
+      guard c != ._null else { return nil }
+      chars.append(c)
+    }
     let str = _SystemString(chars)
     let path = FilePath(normalizing: str)
     guard path.anchor == nil else { return nil }
@@ -122,27 +151,22 @@ extension FilePath.Component {
 }
 
 extension FilePath.Anchor {
-  /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
-  ///
-  /// Access the code units of this anchor.
+  /// A span of the platform code units comprising this anchor.
   @available(SwiftStdlib 9999, *)
-  public func withCodeUnits<T>(
-    _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
-  ) rethrows -> T {
-    try unsafe _slice.withCodeUnits(body)
+  public var codeUnits: Span<FilePath.CodeUnit> {
+    _path._storage._nullTerminatedSpan.extracting(
+      _path._storage.startIndex..<_end)
   }
 }
 
 extension FilePath.ComponentView {
-  /// Stand-in for `var codeUnits: Span<FilePath.CodeUnit>`.
-  ///
-  /// Access the code units of the component view.
+  /// A span of the platform code units comprising the relative
+  /// components portion of the path.
   @available(SwiftStdlib 9999, *)
-  public func withCodeUnits<T>(
-    _ body: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T
-  ) rethrows -> T {
+  public var codeUnits: Span<FilePath.CodeUnit> {
     // The component view spans [_relStart, _relEnd) in the path's storage.
-    // Strip trailing separator (it is suffix, not part of components).
+    // Strip a trailing separator (it is suffix, not part of components) —
+    // same boundary logic as the former buffer-based stand-in.
     var end = _relEnd
     if end > _relStart
        && isSeparator(_path._storage[_path._storage.index(before: end)]) {
@@ -152,15 +176,6 @@ extension FilePath.ComponentView {
         end = sepIdx
       }
     }
-    let count = _path._storage.distance(from: _relStart, to: end)
-    if count == 0 {
-      return try unsafe body(UnsafeBufferPointer(start: nil, count: 0))
-    }
-    return try unsafe _path._storage.withNullTerminatedCodeUnits { fullBuf in
-      let startOffset = _path._storage.distance(
-        from: _path._storage.startIndex, to: _relStart)
-      let p = unsafe fullBuf.baseAddress!.advanced(by: startOffset)
-      return try unsafe body(UnsafeBufferPointer(start: p, count: count))
-    }
+    return _path._storage._nullTerminatedSpan.extracting(_relStart..<end)
   }
 }

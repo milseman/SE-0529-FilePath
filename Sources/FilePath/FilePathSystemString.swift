@@ -168,6 +168,26 @@ extension _SystemString {
   }
 }
 
+// MARK: - Span access
+
+extension _SystemString {
+  // A borrowed span over the whole backing array, INCLUDING the trailing
+  // null terminator as its final element. Backs FilePath's
+  // `nullTerminatedCodeUnits`. Computed getter, so the borrow on `self` is
+  // inferred (SE-0456) — no `@_lifetime` needed. Span access is safe, so no
+  // `unsafe` expression is required under StrictMemorySafety.
+  internal var _nullTerminatedSpan: Span<FilePath.CodeUnit> {
+    nullTerminatedStorage.span
+  }
+
+  // A borrowed span over the code units EXCLUDING the trailing null
+  // terminator. Backs FilePath's `codeUnits`; the per-subtype spans extract
+  // their slice range from `_nullTerminatedSpan`.
+  internal var _span: Span<FilePath.CodeUnit> {
+    nullTerminatedStorage.span.extracting(0..<length)
+  }
+}
+
 extension Slice<_SystemString> {
   internal func withCodeUnits<T>(
     _ f: (UnsafeBufferPointer<FilePath.CodeUnit>) throws -> T

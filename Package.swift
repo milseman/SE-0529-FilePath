@@ -31,6 +31,12 @@ let package = Package(
                 // mechanical `9999`→concrete-version sweep happens at ship time.
                 .enableExperimentalFeature(
                     "AvailabilityMacro=SwiftStdlib 9999:macOS 9999, iOS 9999, watchOS 9999, tvOS 9999, visionOS 9999"),
+                // Lifetime-dependency support for the proposal's Span-returning
+                // byte-access API (`codeUnits` / `nullTerminatedCodeUnits`).
+                // Project convention is the feature name "Lifetimes" with the
+                // `@_lifetime` annotation; computed Span getters infer the
+                // borrow on `self` (SE-0456) and need no explicit annotation.
+                .enableExperimentalFeature("Lifetimes"),
                 .define("FILEPATH_PACKAGE"),
                 .strictMemorySafety(),
                 .unsafeFlags(["-Werror", "StrictMemorySafety"]),

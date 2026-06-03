@@ -31,13 +31,13 @@ extension AllTests.ValidationTests {
   func filePathFromCodeUnits(
     _ units: [FilePath.CodeUnit]
   ) -> FilePath? {
-    units.withUnsafeBufferPointer { FilePath(codeUnits: $0) }
+    FilePath(codeUnits: units.span)
   }
 
   func componentFromCodeUnits(
     _ units: [FilePath.CodeUnit]
   ) -> FilePath.Component? {
-    units.withUnsafeBufferPointer { FilePath.Component(codeUnits: $0) }
+    FilePath.Component(codeUnits: units.span)
   }
 
   // MARK: - FilePath.init?(_: String) NUL rejection
@@ -234,11 +234,82 @@ extension AllTests.ValidationTests {
       for name in ["hello", ".", "..", "file.txt", "café", "🧟‍♀️"] {
         let s: String = name
         let comp = FilePath.Component(s)!
-        let extracted = comp.withCodeUnits { Array($0) }
+        let span = comp.codeUnits
+        var extracted = [FilePath.CodeUnit]()
+        extracted.reserveCapacity(span.count)
+        for i in span.indices { extracted.append(span[i]) }
         let roundTripped = componentFromCodeUnits(extracted)
         expectTrue(roundTripped == comp,
           "Component code unit round-trip failed for \(name.debugDescription)")
       }
+    }
+  }
+
+  // MARK: - Span code-unit accessors
+
+  /// Copies a span of code units into an array (`Span` is not a `Sequence`).
+  private func _array(
+    _ span: Span<FilePath.CodeUnit>
+  ) -> [FilePath.CodeUnit] {
+    var out = [FilePath.CodeUnit]()
+    out.reserveCapacity(span.count)
+    for i in span.indices { out.append(span[i]) }
+    return out
+  }
+
+  @Test
+  func spanCodeUnitsAccessors() {
+    func bytes(_ s: String) -> [FilePath.CodeUnit] {
+      Array(s.utf8).map { CChar(bitPattern: $0) }
+    }
+    withPlatform(.linux) {
+      // Bind to `String` locals so the failable `init?(_:)` is selected
+      // (a bare string literal binds the non-failable
+      // `ExpressibleByStringLiteral` init, which is not optional).
+      let input: String = "/usr/local"
+      let path = FilePath(input)!
+
+      // FilePath.codeUnits excludes the null terminator;
+      // nullTerminatedCodeUnits includes it as the final element.
+      let cu = _array(path.codeUnits)
+      expectEqual(cu, bytes("/usr/local"))
+      expectFalse(cu.contains(0))
+
+      let ntcu = _array(path.nullTerminatedCodeUnits)
+      expectEqual(ntcu, bytes("/usr/local") + [0])
+      expectEqual(ntcu.count, cu.count + 1)
+      expectTrue(ntcu.last == 0)
+
+      // Bind each owner to a local before borrowing its span: a span
+      // borrowed from a force-unwrapped (`!`) temporary would outlive that
+      // temporary ("lifetime-dependent value escapes its scope").
+      let anchor = path.anchor!
+      expectEqual(_array(anchor.codeUnits), bytes("/"))
+
+      // ComponentView.codeUnits is the relative portion (anchor excluded).
+      let cv = path.components
+      expectEqual(_array(cv.codeUnits), bytes("usr/local"))
+
+      // Component.codeUnits is a single component's bytes.
+      let firstComp = cv.first!
+      let lastComp = cv.last!
+      expectEqual(_array(firstComp.codeUnits), bytes("usr"))
+      expectEqual(_array(lastComp.codeUnits), bytes("local"))
+
+      // ComponentView strips a trailing separator (suffix, not a component).
+      let trailingInput: String = "/usr/local/"
+      let trailing = FilePath(trailingInput)!
+      expectTrue(trailing.hasTrailingSeparator)
+      let trailingCV = trailing.components
+      expectEqual(_array(trailingCV.codeUnits), bytes("usr/local"))
+
+      // Empty relative portion -> empty span.
+      let rootInput: String = "/"
+      let rootOnly = FilePath(rootInput)!
+      let rootCV = rootOnly.components
+      expectEqual(_array(rootCV.codeUnits), [])
+      let rootAnchor = rootOnly.anchor!
+      expectEqual(_array(rootAnchor.codeUnits), bytes("/"))
     }
   }
 
