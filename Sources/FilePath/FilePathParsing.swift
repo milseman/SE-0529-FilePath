@@ -29,10 +29,13 @@ internal var _isDarwin: Bool {
   false
   #endif
 }
+// TODO: add _isLinux so that we can _internalInvariant on it (and add those assertions)
+// in the if-else code paths over platforms.
 
 // The separator we use for slash-based platforms
 private var genericSeparator: FilePath.CodeUnit { ._slash }
 
+// TODO: all internal interfaces need a leading underscore somewhere in their name or chain of names.
 internal var platformSeparator: FilePath.CodeUnit {
   _isWindows ? ._backslash : genericSeparator
 }
@@ -259,5 +262,8 @@ extension _SystemString {
     }
 
     self = _SystemString(result)
+
+    // TODO: remove all those array allocations whenever possible, and probably refactor
+    // or rework this code a little bit.
   }
 }

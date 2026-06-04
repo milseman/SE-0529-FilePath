@@ -52,6 +52,11 @@ extension _SystemString {
 
   // MARK: - /.nofollow/
 
+  // TODO: Remove all the eager maps below, all the `.count` over grapheme clusters, etc.
+  // Is there a better way to design or architect this? At very least we can work with UTF8View
+  // and stop making extra memory allocations and such, but I'm also wondering if there isn't
+  // just a better coding pattern we could adopt
+
   private func _matchesNofollow(from dotIdx: Index) -> Bool {
     let nofollow: [FilePath.CodeUnit] = ".nofollow".unicodeScalars.map {
       FilePath.CodeUnit(_ascii: $0)

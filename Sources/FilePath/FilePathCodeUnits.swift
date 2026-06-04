@@ -147,6 +147,8 @@ extension FilePath.Component {
     let comps = path.components
     guard comps.count == 1 else { return nil }
     self = comps.first!
+
+    // TODO: what about checking for trailing slash? do we have tests for that?
   }
 }
 

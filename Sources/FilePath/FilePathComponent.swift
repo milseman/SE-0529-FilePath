@@ -117,5 +117,8 @@ extension FilePath.Component: ExpressibleByStringLiteral {
     let comps = path.components
     guard comps.count == 1 else { return nil }
     self = comps.first!
+
+    // TODO: lots of duplication and bug potential from that with the span based init.
+    // We should probably defer to the span init.
   }
 }

@@ -28,6 +28,7 @@ extension FilePath {
     /// Whether this anchor is rooted.
     @available(SwiftStdlib 9999, *)
     public var isRooted: Bool {
+      // TODO: all through this file, we have this pattern. Change to guard when it improves clarity
       if !_isWindows { return true }
 
       // On Windows, the only non-rooted anchor is drive-relative `C:`
@@ -35,6 +36,8 @@ extension FilePath {
       // `C:\`, `\\server\share`, `\\?\...` — is rooted.
       return !_isDriveRelativeAnchor(_slice)
     }
+
+    // TODO: Gate the below and others by platform as the proposal now does
 
     /// The drive letter of this anchor, if any.
     ///
@@ -63,6 +66,7 @@ extension FilePath {
     /// Whether this anchor uses the Windows verbatim-component form.
     @available(SwiftStdlib 9999, *)
     public var isVerbatimComponent: Bool {
+      // TODO: this can be a guard along with a guard let, probably in one guard statement
       if !_isWindows { return false }
       if let parsed = _parseWindowsAnchor() {
         return parsed.isVerbatimComponent
@@ -153,6 +157,8 @@ extension FilePath.Anchor: ExpressibleByStringLiteral {
     self = anchor
   }
 }
+
+// TODO: consider de-genericizing the below, basing it on slice. that would help debug builds.
 
 /// Returns `true` when `anchorBytes` is a Windows UNC/device/verbatim
 /// anchor form that is missing its name: incomplete UNC (`\\`, `\\server`),

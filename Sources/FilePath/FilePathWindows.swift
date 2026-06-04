@@ -179,6 +179,8 @@ extension _SystemString {
       return idx
     }
 
+    // TODO: a better way to do this than making an eager array
+
     // \\?\UNC\server\share[\]
     let uncChars: [FilePath.CodeUnit] = [
       FilePath.CodeUnit(_ascii: "U"),
