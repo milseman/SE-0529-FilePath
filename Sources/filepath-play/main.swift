@@ -4,53 +4,57 @@ func quoted(_ s: String) -> String {
   s.contains("\\") ? "#\"\(s)\"#" : s.debugDescription
 }
 
-let platforms: [(REVIEW_ONLY_Platform, String, Int)] = [
-  (.linux, "linux", 7),
-  (.darwin, "darwin", 6),
-  (.windows, "windows", 5),
-]
+// This reference tool builds for a single platform at a time; the label is
+// chosen at compile time to match the one live code path.
+let builtPlatformName: String = {
+  #if os(Windows)
+  "windows"
+  #elseif canImport(Darwin)
+  "darwin"
+  #else
+  "linux"
+  #endif
+}()
 
-struct PlatformResult {
-  var platform: REVIEW_ONLY_Platform
-  var name: String
-  var path: FilePath
-  var summary: String
-}
+func dump(_ input: String) {
+  print("input: \(input.debugDescription)")
 
-func collectResult(
-  _ input: String, platform: REVIEW_ONLY_Platform, name: String
-) -> PlatformResult {
-  FilePath.REVIEW_ONLY_platform = platform
   let path = FilePath(input)!
 
+  // Summary line
   let anchorStr = path.anchor.map { quoted($0.description) } ?? "(none)"
   let compStrs = path.components.map { quoted($0.description) }
   let compsStr = compStrs.isEmpty ? "(none)" : compStrs.joined(separator: ", ")
   let suffix: String
-  if platform == .darwin && path.isResourceFork {
+  #if canImport(Darwin)
+  if path.isResourceFork {
     suffix = "/..namedfork/rsrc"
   } else if path.hasTrailingSeparator {
     suffix = "trailing separator"
   } else {
     suffix = "(none)"
   }
-  let summary = "\(anchorStr) | \(compsStr) | \(suffix)"
-  return PlatformResult(
-    platform: platform, name: name, path: path, summary: summary)
-}
+  #else
+  if path.hasTrailingSeparator {
+    suffix = "trailing separator"
+  } else {
+    suffix = "(none)"
+  }
+  #endif
+  print("  \u{2550}\u{2550}\u{2550} \(builtPlatformName) \u{2550}\u{2550}\u{2550}  " +
+        "\(anchorStr) | \(compsStr) | \(suffix)")
+  print()
 
-func printDetails(_ r: PlatformResult) {
-  FilePath.REVIEW_ONLY_platform = r.platform
-  let path = r.path
-
+  // Detail block
+  print("  \u{2500}\u{2500}\u{2500} \(builtPlatformName) \u{2500}\u{2500}\u{2500}")
   print("  description:          \(quoted(path.description))")
   print("  isEmpty:              \(path.isEmpty)")
   print("  isAbsolute:           \(path.isAbsolute)")
   print("  hasTrailingSeparator: \(path.hasTrailingSeparator)")
 
-  if r.platform == .darwin {
-    print("  isResourceFork:       \(path.isResourceFork)")
-  }
+  #if canImport(Darwin)
+  print("  isResourceFork:       \(path.isResourceFork)")
+  #endif
 
   if let anchor = path.anchor {
     print("  anchor:")
@@ -69,7 +73,8 @@ func printDetails(_ r: PlatformResult) {
   }
 
   let roundTrip: FilePath
-  if r.platform == .darwin && path.isResourceFork {
+  #if canImport(Darwin)
+  if path.isResourceFork {
     roundTrip = FilePath(
       anchor: path.anchor,
       path.components,
@@ -80,6 +85,12 @@ func printDetails(_ r: PlatformResult) {
       path.components,
       hasTrailingSeparator: path.hasTrailingSeparator)
   }
+  #else
+  roundTrip = FilePath(
+    anchor: path.anchor,
+    path.components,
+    hasTrailingSeparator: path.hasTrailingSeparator)
+  #endif
 
   if roundTrip == path {
     print("  round-trip:           OK")
@@ -88,27 +99,7 @@ func printDetails(_ r: PlatformResult) {
     print("    original:           \(quoted(path.description))")
     print("    reconstructed:      \(quoted(roundTrip.description))")
   }
-}
-
-func dump(_ input: String) {
-  print("input: \(input.debugDescription)")
-
-  let results = platforms.map { (p, name, _) in
-    collectResult(input, platform: p, name: name)
-  }
-
-  for (i, r) in results.enumerated() {
-    let pad = platforms[i].2
-    print("  \u{2550}\u{2550}\u{2550} \(r.name) \u{2550}\u{2550}\u{2550}" +
-          String(repeating: " ", count: pad) + r.summary)
-  }
   print()
-
-  for r in results {
-    print("  \u{2500}\u{2500}\u{2500} \(r.name) \u{2500}\u{2500}\u{2500}")
-    printDetails(r)
-    print()
-  }
 }
 
 if CommandLine.arguments.count > 1 {

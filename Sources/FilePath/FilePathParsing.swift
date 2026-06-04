@@ -7,6 +7,29 @@
  See https://swift.org/LICENSE.txt for license information
 */
 
+// MARK: - Platform predicates
+//
+// Compile-time platform selection. This reference implementation builds for a
+// single platform at a time, so these fold to constants. They replace a former
+// runtime platform-switch global (now deleted) that had let the test suite
+// drive all three code paths on one host; the test target now carries its own
+// copy of the platform enum for that purpose. The names and signatures are
+// unchanged from the old predicates, so every caller compiles as-is.
+internal var _isWindows: Bool {
+  #if os(Windows)
+  true
+  #else
+  false
+  #endif
+}
+internal var _isDarwin: Bool {
+  #if canImport(Darwin)
+  true
+  #else
+  false
+  #endif
+}
+
 // The separator we use for slash-based platforms
 private var genericSeparator: FilePath.CodeUnit { ._slash }
 

@@ -14,14 +14,18 @@ import Foundation
 // ===========================================================================
 // TestSupport — the single indirection seam between these tests and
 //   (a) the test framework, and
-//   (b) the REVIEW_ONLY platform switch.
+//   (b) compile-time platform selection.
 //
 // This file exists to make the eventual ports MECHANICAL. The tests will be
-// ported to StdlibUnittest (standard library) and XCTest (swift-system), and
-// the runtime platform switch will become a compile-time `#if os(...)`. Both
-// migrations are trivial *iff* no test body talks to swift-testing or to the
-// platform global directly. So those two dependencies are concentrated here,
-// and only here.
+// ported to StdlibUnittest (standard library) and XCTest (swift-system); at
+// that point only this file is rewritten to forward to the destination
+// framework. The runtime platform switch has already been folded into
+// compile-time `#if os(...)`: the library exposes `_isWindows` / `_isDarwin`
+// as compile-time constants (FilePathParsing.swift), and the test target
+// carries its own copy of the platform enum plus `_builtPlatform` (below), so
+// a build contains exactly one platform's behavior. The remaining migration
+// stays trivial *iff* no test body talks to swift-testing directly or reaches
+// around the platform seam.
 //
 // PORT NOTE (assertions): The helpers below forward to swift-testing's
 // `#expect` today. Each has a direct analogue in the destination frameworks
@@ -32,11 +36,10 @@ import Foundation
 //       directly. Use the helpers below.
 //
 // PORT NOTE (platform): `withPlatform` / `forEachPlatform` are the ONLY places
-// that read or write `FilePath.REVIEW_ONLY_platform`. At compile-time-port time
-// `withPlatform(p)` becomes a no-op wrapper guarded by `#if os(...)` (the body
-// runs only when `p` matches the single built platform) and `forEachPlatform`
-// collapses to a single call for the one built platform. Nothing in a test body
-// should read or write `REVIEW_ONLY_platform` except through these.
+// that consult `_builtPlatform`. There is no runtime platform global anymore:
+// `withPlatform(p)` runs its body only when `p` is the single built platform,
+// and `forEachPlatform` calls its body exactly once, for that platform.
+// Nothing in a test body should select the platform except through these.
 // ===========================================================================
 
 // MARK: - Assertion seam
@@ -128,32 +131,45 @@ func expectKnownIssue(
 
 // MARK: - Platform-runner seam
 
-/// All review-time platforms, in a fixed order. The only enumeration of the
-/// platform set in the test target.
-let allReviewPlatforms: [REVIEW_ONLY_Platform] = [.linux, .darwin, .windows]
+/// The review-time platform enum, formerly vended by the library (and compiled
+/// away in the real stdlib). The library no longer carries it; the test target
+/// keeps its own copy so the platform-specific tests can name the platform they
+/// pin. INTERNAL (not private) on purpose: other test files reference it.
+enum REVIEW_ONLY_Platform: Sendable { case linux, darwin, windows }
 
-/// Runs `body` with `FilePath.REVIEW_ONLY_platform` set to `p`.
-///
-/// PORT NOTE: becomes `#if os(...)`-guarded at compile-time-port time — the
-/// body runs only when `p` is the single built platform; the global goes away.
+/// The single platform this test target was built for, selected at compile
+/// time. The test-side mirror of the library's `_isWindows` / `_isDarwin`
+/// predicates.
+let _builtPlatform: REVIEW_ONLY_Platform = {
+  #if os(Windows)
+  .windows
+  #elseif canImport(Darwin)
+  .darwin
+  #else
+  .linux
+  #endif
+}()
+
+/// All review-time platforms. After the compile-time fold this is just the one
+/// built platform; kept as an array so existing call shapes compile unchanged.
+let allReviewPlatforms: [REVIEW_ONLY_Platform] = [_builtPlatform]
+
+/// Runs `body` only when `p` is the platform this target was built for;
+/// otherwise does nothing. (A non-built-platform body is inert — the test still
+/// runs and passes, it just makes no assertions.)
 func withPlatform(
   _ p: REVIEW_ONLY_Platform,
   _ body: () throws -> Void
 ) rethrows {
-  FilePath.REVIEW_ONLY_platform = p
+  guard p == _builtPlatform else { return }
   try body()
 }
 
-/// Runs `body` once per review-time platform, with the global set each time.
-///
-/// PORT NOTE: collapses to a single invocation for the one built platform.
+/// Runs `body` exactly once, for the platform this target was built for.
 func forEachPlatform(
   _ body: (REVIEW_ONLY_Platform) throws -> Void
 ) rethrows {
-  for p in allReviewPlatforms {
-    FilePath.REVIEW_ONLY_platform = p
-    try body(p)
-  }
+  try body(_builtPlatform)
 }
 
 // MARK: - Universal path literals
