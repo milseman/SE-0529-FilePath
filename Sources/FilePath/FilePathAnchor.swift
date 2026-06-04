@@ -7,6 +7,7 @@
  See https://swift.org/LICENSE.txt for license information
 */
 
+@available(SwiftStdlib 9999, *)
 extension FilePath {
   /// The anchor of a file path identifies a reference point
   /// and precedes any components.
@@ -82,6 +83,7 @@ extension FilePath {
 
 // MARK: - Anchor Hashable, Comparable, descriptions
 
+@available(SwiftStdlib 9999, *)
 extension FilePath.Anchor: Hashable {
   @available(SwiftStdlib 9999, *)
   public static func == (lhs: FilePath.Anchor, rhs: FilePath.Anchor) -> Bool {
@@ -95,6 +97,7 @@ extension FilePath.Anchor: Hashable {
   }
 }
 
+@available(SwiftStdlib 9999, *)
 extension FilePath.Anchor: Comparable {
   @available(SwiftStdlib 9999, *)
   public static func < (lhs: FilePath.Anchor, rhs: FilePath.Anchor) -> Bool {
@@ -102,6 +105,7 @@ extension FilePath.Anchor: Comparable {
   }
 }
 
+@available(SwiftStdlib 9999, *)
 extension FilePath.Anchor: CustomStringConvertible, CustomDebugStringConvertible {
   @available(SwiftStdlib 9999, *)
   public var description: String {
@@ -117,6 +121,7 @@ extension FilePath.Anchor: CustomStringConvertible, CustomDebugStringConvertible
   }
 }
 
+@available(SwiftStdlib 9999, *)
 extension FilePath.Anchor: ExpressibleByStringLiteral {
   /// Creates an anchor from a string literal.
   ///
@@ -173,6 +178,7 @@ extension FilePath.Anchor: ExpressibleByStringLiteral {
 /// non-empty share; device (`\\.\`) needs a non-empty device name; verbatim
 /// (`\\?\`) needs a non-empty component after the prefix. Traditional roots
 /// (`\`, `C:`, `C:\`) carry no separate name and are never rejected here.
+@available(SwiftStdlib 9999, *)
 private func _isIncompleteWindowsNamedAnchor(
   _ anchorBytes: some Collection<FilePath.CodeUnit>
 ) -> Bool {

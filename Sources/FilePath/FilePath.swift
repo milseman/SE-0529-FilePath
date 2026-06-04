@@ -151,6 +151,7 @@ public struct FilePath: Sendable {
 }
 
 // Check if a path is a verbatim-component Windows path
+@available(SwiftStdlib 9999, *)
 internal func _isVerbatimComponentPath(_ storage: _SystemString) -> Bool {
   guard _isWindows else { return false }
   guard let parsed = storage._parseWindowsRootInternal() else { return false }
