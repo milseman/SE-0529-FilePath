@@ -65,14 +65,6 @@ extension _SystemString {
     self.nullTerminatedStorage = storage
     _invariantCheck()
   }
-
-  internal init<C: Collection>(_ chars: C) where C.Element == FilePath.CodeUnit {
-    var rawChars = _Storage(chars)
-    if rawChars.last != ._null {
-      rawChars.append(._null)
-    }
-    self.init(nullTerminated: rawChars)
-  }
 }
 
 @available(SwiftStdlib 9999, *)

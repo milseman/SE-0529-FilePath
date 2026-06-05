@@ -75,7 +75,7 @@ struct SystemStringTests {
 
   @Test
   func initFromBytesEndingInNullDoesntDouble() {
-    let s = _SystemString(
+    let s = _SystemString(nullTerminatedStorage:
       [FilePath.CodeUnit(0x41), FilePath.CodeUnit(0x42), ._null])
     let bytes = _checkAndExtract(s)
     #expect(bytes.map(Int.init) == [0x41, 0x42])

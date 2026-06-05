@@ -40,6 +40,7 @@ public struct FilePath: Sendable {
   }
 
   private static func _normalizeLinux(_ str: _SystemString) -> FilePath {
+    _internalInvariant(_isLinux)
     var s = str
     s._normalizeSeparators()
     let (rootEnd, _) = s._parseRoot()
@@ -72,20 +73,17 @@ public struct FilePath: Sendable {
   }
 
   private static func _normalizeDarwin(_ str: _SystemString) -> FilePath {
-    // TODO: the below comment isn't quite right. We are canonicalizing separators
-    // first, then we are parsing and canonicalizing the way XNU does second. XNU
-    // doesn't canonicalize separators, but we're doing a modulo-separator-canonicalization
-    // semantics here.
-
-    // Darwin follows the coalescing POSIX kernel parse: coalesce the
-    // whole string first, then canonicalize the anchor, then parse the
-    // anchor and resource-fork suffix boundaries on those same
-    // coalesced+canonicalized bytes. This makes semantically-identical
-    // spellings store identically — e.g. /.resolve//1/foo and
-    // /.resolve/1/foo both canonicalize to /.nofollow/foo. (The earlier
-    // approach canonicalized raw bytes that still contained the double
-    // slash, so canonicalization never fired and a non-canonical anchor
-    // such as /.resolve/1/ could persist.)
+    // Coalesce separators across the whole string first, then canonicalize
+    // the anchor and parse the anchor / resource-fork suffix boundaries on
+    // those coalesced bytes the way XNU classifies them.
+    //
+    // This is deliberately *not* what XNU does byte-for-byte: the kernel
+    // does not coalesce separators before recognizing the
+    // .vol/.resolve/.nofollow anchors. Because we coalesce first, our
+    // canonicalization is XNU's modulo separator-coalescing — spellings
+    // that differ only in runs of separators store identically. e.g.
+    // /.resolve//1/foo and /.resolve/1/foo both coalesce and canonicalize
+    // to /.nofollow/foo.
     var s = str
     s._normalizeSeparators()
     s._canonicalizeDarwinAnchor()
@@ -100,13 +98,11 @@ public struct FilePath: Sendable {
       suffixStart = s.endIndex
     }
 
-    // TODO: Do the below without making a bunch of arrays and allocations
-
     // Slice into anchor + gap separator + relative + suffix.
-    let anchorSlice = Array(s[s.startIndex..<rootEnd])
-    let gapSlice = Array(s[rootEnd..<relBegin])
-    let relativeChars = Array(s[relBegin..<suffixStart])
-    let suffixSlice = Array(s[suffixStart..<s.endIndex])
+    let anchorSlice = s[s.startIndex..<rootEnd]
+    let gapSlice = s[rootEnd..<relBegin]
+    let relativeChars = s[relBegin..<suffixStart]
+    let suffixSlice = s[suffixStart..<s.endIndex]
 
     // Dot-normalize the relative portion only. Separators are already
     // coalesced and the suffix is excluded from this step.

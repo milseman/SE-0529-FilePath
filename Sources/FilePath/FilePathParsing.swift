@@ -8,6 +8,8 @@
  See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 */
 
+// TODO: adjust below comment
+
 // MARK: - Platform predicates
 //
 // Compile-time platform selection. This reference implementation builds for a
@@ -16,22 +18,23 @@
 // drive all three code paths on one host; the test target now carries its own
 // copy of the platform enum for that purpose. The names and signatures are
 // unchanged from the old predicates, so every caller compiles as-is.
-internal var _isWindows: Bool {
-  #if os(Windows)
-  true
-  #else
-  false
-  #endif
-}
-internal var _isDarwin: Bool {
-  #if canImport(Darwin)
-  true
-  #else
-  false
-  #endif
-}
-// TODO: add _isLinux so that we can _internalInvariant on it (and add those assertions)
-// in the if-else code paths over platforms.
+// Exactly one branch is active. An unrecognized target is a hard
+// compile error, not a silent slash-path fallback.
+#if os(Windows)
+internal var _isWindows: Bool { true }
+internal var _isDarwin:  Bool { false }
+internal var _isLinux:   Bool { false }
+#elseif os(anyAppleOS) || canImport(Darwin)
+internal var _isWindows: Bool { false }
+internal var _isDarwin:  Bool { true }
+internal var _isLinux:   Bool { false }
+#elseif os(Linux) || os(Android) || os(FreeBSD) || os(OpenBSD) || os(WASI)
+internal var _isWindows: Bool { false }
+internal var _isDarwin:  Bool { false }
+internal var _isLinux:   Bool { true }
+#else
+#error("FilePath: unsupported platform")
+#endif
 
 // The separator we use for slash-based platforms
 @available(SwiftStdlib 9999, *)

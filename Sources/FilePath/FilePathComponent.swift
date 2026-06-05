@@ -113,18 +113,29 @@ extension FilePath.Component: ExpressibleByStringLiteral {
   @available(SwiftStdlib 9999, *)
   public init?(_ string: String) {
     guard !string.isEmpty else { return nil }
+    // Reject NUL before building storage: a NUL-bearing _SystemString would
+    // trip its own interior-null invariant. (NUL is byte 0 in both UTF-8 and
+    // UTF-16, so the UTF-8 check covers the Windows build too.)
     guard !string.utf8.contains(0) else { return nil }
-    for scalar in string.unicodeScalars {
-      if scalar == "/" { return nil }
-      if _isWindows && scalar == "\\" { return nil }
-    }
-    guard let path = FilePath(string) else { return nil }
-    guard path.anchor == nil else { return nil }
+    self.init(_validating: _SystemString(string))
+  }
+}
+
+@available(SwiftStdlib 9999, *)
+extension FilePath.Component {
+  /// Shared validation behind `init?(_:)` and `init?(codeUnits:)`.
+  ///
+  /// `str` must already be free of `NUL` (callers check first). Succeeds only
+  /// when `str` normalizes to exactly one component with no anchor and no
+  /// trailing separator — i.e. a bare component with no embedded *or* trailing
+  /// directory separator, matching the contract that a component contains no
+  /// separators. So `a/b` (interior) and `a/` (trailing) are both rejected,
+  /// as is any anchored input.
+  internal init?(_validating str: _SystemString) {
+    let path = FilePath(normalizing: str)
+    guard path.anchor == nil, !path.hasTrailingSeparator else { return nil }
     let comps = path.components
     guard comps.count == 1 else { return nil }
     self = comps.first!
-
-    // TODO: lots of duplication and bug potential from that with the span based init.
-    // We should probably defer to the span init.
   }
 }

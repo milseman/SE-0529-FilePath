@@ -146,14 +146,7 @@ extension FilePath.Component {
       guard c != ._null else { return nil }
       chars.append(c)
     }
-    let str = _SystemString(chars)
-    let path = FilePath(normalizing: str)
-    guard path.anchor == nil else { return nil }
-    let comps = path.components
-    guard comps.count == 1 else { return nil }
-    self = comps.first!
-
-    // TODO: what about checking for trailing slash? do we have tests for that?
+    self.init(_validating: _SystemString(chars))
   }
 }
 

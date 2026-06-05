@@ -53,24 +53,26 @@ extension _SystemString {
     return nil
   }
 
+  // ASCII byte spellings of the Darwin magic-anchor tokens, stored once
+  // rather than rebuilt on every call. Indexing arithmetic uses each
+  // array's own `.count` (a code-unit count); `String.count` would be a
+  // grapheme-cluster count — coincidentally equal for these ASCII tokens,
+  // but the wrong unit for indexing byte storage.
+  private static let _nofollowToken: [FilePath.CodeUnit] =
+    ".nofollow".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
+  private static let _resolveToken: [FilePath.CodeUnit] =
+    ".resolve".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
+  private static let _volToken: [FilePath.CodeUnit] =
+    ".vol".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
+
   // MARK: - /.nofollow/
 
-  // TODO: Remove all the eager maps below, all the `.count` over grapheme clusters, etc.
-  // Is there a better way to design or architect this? At very least we can work with UTF8View
-  // and stop making extra memory allocations and such, but I'm also wondering if there isn't
-  // just a better coding pattern we could adopt
-
   private func _matchesNofollow(from dotIdx: Index) -> Bool {
-    let nofollow: [FilePath.CodeUnit] = ".nofollow".unicodeScalars.map {
-      FilePath.CodeUnit(_ascii: $0)
-    }
-    let slice = self[dotIdx...]
-    return slice.starts(with: nofollow)
+    self[dotIdx...].starts(with: Self._nofollowToken)
   }
 
   private func _parseNofollow(from dotIdx: Index) -> _ParsedDarwinAnchor? {
-    let nofollowLen = ".nofollow".count // 9
-    let nofollowEnd = index(dotIdx, offsetBy: nofollowLen)
+    let nofollowEnd = index(dotIdx, offsetBy: Self._nofollowToken.count)
     guard nofollowEnd < endIndex else { return nil }
     guard self[nofollowEnd] == ._slash else { return nil }
 
@@ -83,16 +85,11 @@ extension _SystemString {
   // MARK: - /.resolve/N/
 
   private func _matchesResolve(from dotIdx: Index) -> Bool {
-    let resolve: [FilePath.CodeUnit] = ".resolve".unicodeScalars.map {
-      FilePath.CodeUnit(_ascii: $0)
-    }
-    let slice = self[dotIdx...]
-    return slice.starts(with: resolve)
+    self[dotIdx...].starts(with: Self._resolveToken)
   }
 
   private func _parseResolve(from dotIdx: Index) -> _ParsedDarwinAnchor? {
-    let resolveLen = ".resolve".count // 8
-    let resolveEnd = index(dotIdx, offsetBy: resolveLen)
+    let resolveEnd = index(dotIdx, offsetBy: Self._resolveToken.count)
     guard resolveEnd < endIndex else { return nil }
     guard self[resolveEnd] == ._slash else { return nil }
 
@@ -115,16 +112,11 @@ extension _SystemString {
   // MARK: - /.vol/FSID/FILEID
 
   private func _matchesVol(from dotIdx: Index) -> Bool {
-    let vol: [FilePath.CodeUnit] = ".vol".unicodeScalars.map {
-      FilePath.CodeUnit(_ascii: $0)
-    }
-    let slice = self[dotIdx...]
-    return slice.starts(with: vol)
+    self[dotIdx...].starts(with: Self._volToken)
   }
 
   private func _parseVol(from dotIdx: Index) -> _ParsedDarwinAnchor? {
-    let volLen = ".vol".count // 4
-    let volEnd = index(dotIdx, offsetBy: volLen)
+    let volEnd = index(dotIdx, offsetBy: Self._volToken.count)
     guard volEnd < endIndex else { return nil }
     guard self[volEnd] == ._slash else { return nil }
 
@@ -162,31 +154,31 @@ extension _SystemString {
 
 @available(SwiftStdlib 9999, *)
 extension _SystemString {
+  // Full anchor prefixes used by canonicalization, stored once.
+  private static let _resolveOneAnchor: [FilePath.CodeUnit] =
+    "/.resolve/1/".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
+  private static let _nofollowAnchor: [FilePath.CodeUnit] =
+    "/.nofollow/".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
+  private static let _volAnchor: [FilePath.CodeUnit] =
+    "/.vol/".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
+
   // /.resolve/1/ -> /.nofollow/
   // /.vol/NNNN/2/ -> /.vol/NNNN/@/
   internal mutating func _canonicalizeDarwinAnchor() {
     guard _isDarwin else { return }
 
     // Check for /.resolve/1/ -> /.nofollow/
-    let resolveOnePrefix: [FilePath.CodeUnit] = "/.resolve/1/".unicodeScalars.map {
-      FilePath.CodeUnit(_ascii: $0)
-    }
-    if self.starts(with: resolveOnePrefix) {
-      let nofollowPrefix: [FilePath.CodeUnit] = "/.nofollow/".unicodeScalars.map {
-        FilePath.CodeUnit(_ascii: $0)
-      }
-      let resolveEnd = self.index(startIndex, offsetBy: resolveOnePrefix.count)
-      self.replaceSubrange(startIndex..<resolveEnd, with: nofollowPrefix)
+    if self.starts(with: Self._resolveOneAnchor) {
+      let resolveEnd = self.index(
+        startIndex, offsetBy: Self._resolveOneAnchor.count)
+      self.replaceSubrange(startIndex..<resolveEnd, with: Self._nofollowAnchor)
       return
     }
 
     // Check for /.vol/NNNN/2 -> /.vol/NNNN/@
-    let volPrefix: [FilePath.CodeUnit] = "/.vol/".unicodeScalars.map {
-      FilePath.CodeUnit(_ascii: $0)
-    }
-    guard self.starts(with: volPrefix) else { return }
+    guard self.starts(with: Self._volAnchor) else { return }
 
-    let fsidStart = self.index(startIndex, offsetBy: volPrefix.count)
+    let fsidStart = self.index(startIndex, offsetBy: Self._volAnchor.count)
     guard fsidStart < endIndex else { return }
     guard let fsidEnd = self[fsidStart...].firstIndex(of: ._slash) else {
       return

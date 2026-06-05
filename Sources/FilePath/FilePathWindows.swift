@@ -144,6 +144,11 @@ struct _Lexer {
 
 @available(SwiftStdlib 9999, *)
 extension _SystemString {
+  // ASCII bytes "UNC", stored once for the \\?\UNC\ verbatim sub-form
+  // rather than rebuilt on every call.
+  private static let _uncToken: [FilePath.CodeUnit] =
+    "UNC".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
+
   // Check if this string starts with the exact verbatim prefix \\?\
   // (four backslashes — no forward slashes). Returns the index past
   // the prefix, or nil.
@@ -184,16 +189,9 @@ extension _SystemString {
       return idx
     }
 
-    // TODO: a better way to do this than making an eager array
-
     // \\?\UNC\server\share[\]
-    let uncChars: [FilePath.CodeUnit] = [
-      FilePath.CodeUnit(_ascii: "U"),
-      FilePath.CodeUnit(_ascii: "N"),
-      FilePath.CodeUnit(_ascii: "C")
-    ]
-    if self[afterPrefix...].starts(with: uncChars) {
-      let afterUNC = index(afterPrefix, offsetBy: 3)
+    if self[afterPrefix...].starts(with: Self._uncToken) {
+      let afterUNC = index(afterPrefix, offsetBy: Self._uncToken.count)
       if afterUNC < endIndex && isSeparator(self[afterUNC]) {
         let serverStart = index(after: afterUNC)
         let serverEnd = skipToSep(from: serverStart)

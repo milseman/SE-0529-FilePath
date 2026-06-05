@@ -30,8 +30,7 @@ extension FilePath {
     /// Whether this anchor is rooted.
     @available(SwiftStdlib 9999, *)
     public var isRooted: Bool {
-      // TODO: all through this file, we have this pattern. Change to guard when it improves clarity
-      if !_isWindows { return true }
+      guard _isWindows else { return true }
 
       // On Windows, the only non-rooted anchor is drive-relative `C:`
       // (relative to the CWD on that drive). Everything else — `\`,
@@ -39,7 +38,11 @@ extension FilePath {
       return !_isDriveRelativeAnchor(_slice)
     }
 
-    // TODO: Gate the below and others by platform as the proposal now does
+    // TODO: The proposal gates the Windows-only members below
+    // (`driveLetter`, `isVerbatimComponent`) under `#if os(Windows)`. We
+    // don't yet, because the test target's `withPlatform(.windows)` bodies
+    // must type-check on every build (they run inert off-Windows) — gating
+    // would require reworking how those tests reference Windows-only API.
 
     /// The drive letter of this anchor, if any.
     ///
@@ -50,9 +53,9 @@ extension FilePath {
     /// The value is presented as written, without case normalization.
     /// If the drive letter is an unpaired surrogate, `U+FFFD` is returned.
     ///
-    /// NOTE: The proposal gates this under `#if os(Windows)`; it is kept
-    /// cross-platform here so the `REVIEW_ONLY` platform simulation can
-    /// exercise it. On non-Windows platforms it returns `nil`.
+    /// NOTE: Gated under `#if os(Windows)` in the proposal; kept
+    /// cross-platform here (returns `nil` off-Windows) so the cross-platform
+    /// test build still type-checks — see the TODO above.
     @available(SwiftStdlib 9999, *)
     public var driveLetter: Unicode.Scalar? {
       if !_isWindows { return nil }
@@ -68,12 +71,8 @@ extension FilePath {
     /// Whether this anchor uses the Windows verbatim-component form.
     @available(SwiftStdlib 9999, *)
     public var isVerbatimComponent: Bool {
-      // TODO: this can be a guard along with a guard let, probably in one guard statement
-      if !_isWindows { return false }
-      if let parsed = _parseWindowsAnchor() {
-        return parsed.isVerbatimComponent
-      }
-      return false
+      guard _isWindows, let parsed = _parseWindowsAnchor() else { return false }
+      return parsed.isVerbatimComponent
     }
 
     private func _parseWindowsAnchor() -> _ParsedWindowsRoot? {
@@ -164,8 +163,6 @@ extension FilePath.Anchor: ExpressibleByStringLiteral {
   }
 }
 
-// TODO: consider de-genericizing the below, basing it on slice. that would help debug builds.
-
 /// Returns `true` when `anchorBytes` is a Windows UNC/device/verbatim
 /// anchor form that is missing its name: incomplete UNC (`\\`, `\\server`),
 /// empty device (`\\.\`), or empty verbatim (`\\?\`).
@@ -181,7 +178,7 @@ extension FilePath.Anchor: ExpressibleByStringLiteral {
 /// (`\`, `C:`, `C:\`) carry no separate name and are never rejected here.
 @available(SwiftStdlib 9999, *)
 private func _isIncompleteWindowsNamedAnchor(
-  _ anchorBytes: some Collection<FilePath.CodeUnit>
+  _ anchorBytes: Slice<_SystemString>
 ) -> Bool {
   let bytes = Array(anchorBytes)
   // A named form begins with the two-backslash UNC/device/verbatim prefix.
