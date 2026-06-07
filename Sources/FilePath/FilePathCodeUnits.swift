@@ -109,7 +109,7 @@ extension FilePath {
     }
     chars.append(._null)
     let str = _SystemString(nullTerminated: chars)
-    self.init(normalizing: str)
+    self.init(_normalizing: str)
   }
 
   // NOTE: The proposal specifies an OutputSpan-based initializer:
@@ -171,7 +171,7 @@ extension FilePath.ComponentView {
     // same boundary logic as the former buffer-based stand-in.
     var end = _relEnd
     if end > _relStart
-       && isSeparator(_path._storage[_path._storage.index(before: end)]) {
+       && _isSeparator(_path._storage[_path._storage.index(before: end)]) {
       let (_, relBegin) = _path._storage._parseRoot()
       let sepIdx = _path._storage.index(before: end)
       if sepIdx >= relBegin {

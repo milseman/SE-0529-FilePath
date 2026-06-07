@@ -8,18 +8,10 @@
  See https://swift.org/CONTRIBUTORS.txt for the list of Swift project authors
 */
 
-// TODO: adjust below comment
-
 // MARK: - Platform predicates
 //
 // Compile-time platform selection. This reference implementation builds for a
-// single platform at a time, so these fold to constants. They replace a former
-// runtime platform-switch global (now deleted) that had let the test suite
-// drive all three code paths on one host; the test target now carries its own
-// copy of the platform enum for that purpose. The names and signatures are
-// unchanged from the old predicates, so every caller compiles as-is.
-// Exactly one branch is active. An unrecognized target is a hard
-// compile error, not a silent slash-path fallback.
+// single platform at a time, so these fold to constants.
 #if os(Windows)
 internal var _isWindows: Bool { true }
 internal var _isDarwin:  Bool { false }
@@ -28,7 +20,9 @@ internal var _isLinux:   Bool { false }
 internal var _isWindows: Bool { false }
 internal var _isDarwin:  Bool { true }
 internal var _isLinux:   Bool { false }
-#elseif os(Linux) || os(Android) || os(FreeBSD) || os(OpenBSD) || os(WASI)
+// TODO(post-merge): what all can we fold in here? basically any generic POSIX platform that folds `//` into `/`
+// ... #elseif os(Linux) || os(Android) || os(FreeBSD) || os(OpenBSD) || os(WASI)
+#elseif os(Linux)
 internal var _isWindows: Bool { false }
 internal var _isDarwin:  Bool { false }
 internal var _isLinux:   Bool { true }
@@ -38,17 +32,16 @@ internal var _isLinux:   Bool { true }
 
 // The separator we use for slash-based platforms
 @available(SwiftStdlib 9999, *)
-private var genericSeparator: FilePath.CodeUnit { ._slash }
+private var _genericSeparator: FilePath.CodeUnit { ._slash }
 
-// TODO: all internal interfaces need a leading underscore somewhere in their name or chain of names.
 @available(SwiftStdlib 9999, *)
-internal var platformSeparator: FilePath.CodeUnit {
-  _isWindows ? ._backslash : genericSeparator
+internal var _platformSeparator: FilePath.CodeUnit {
+  _isWindows ? ._backslash : _genericSeparator
 }
 
 @available(SwiftStdlib 9999, *)
-internal func isSeparator(_ c: FilePath.CodeUnit) -> Bool {
-  c == platformSeparator
+internal func _isSeparator(_ c: FilePath.CodeUnit) -> Bool {
+  c == _platformSeparator
 }
 
 // MARK: - Anchor shape classification
@@ -101,7 +94,7 @@ internal func _anchorNeedsGapSeparator(
   _ anchorBytes: some BidirectionalCollection<FilePath.CodeUnit>
 ) -> Bool {
   guard let last = anchorBytes.last else { return false }
-  if isSeparator(last) { return false }
+  if _isSeparator(last) { return false }
   if _isDriveRelativeAnchor(anchorBytes) { return false }
   return true
 }
@@ -119,7 +112,7 @@ extension _SystemString {
       result = (startIndex, startIndex)
     } else if _isWindows {
       result = _parseWindowsRoot()
-    } else if !isSeparator(self.first!) {
+    } else if !_isSeparator(self.first!) {
       result = (startIndex, startIndex)
     } else if _isDarwin, let darwinAnchor = _parseDarwinAnchor() {
       result = (darwinAnchor.anchorEnd, darwinAnchor.relativeBegin)
@@ -156,7 +149,7 @@ extension _SystemString {
         // Verbatim: no slash conversion in component region.
         // Anchor region is already all-backslash (required by prefix).
       } else {
-        self._replaceAll(genericSeparator, with: platformSeparator)
+        self._replaceAll(_genericSeparator, with: _platformSeparator)
         // //?/ normalizes to \\?\ after conversion, but it's
         // device-namespace, not verbatim. Demote ? → . sigil.
         if _startsWithVerbatimPrefix() != nil {
@@ -166,7 +159,7 @@ extension _SystemString {
       readIdx = _prenormalizeWindowsRoots()
       writeIdx = readIdx
 
-      while readIdx < endIndex && isSeparator(self[readIdx]) {
+      while readIdx < endIndex && _isSeparator(self[readIdx]) {
         self.formIndex(after: &readIdx)
       }
     }
@@ -174,12 +167,12 @@ extension _SystemString {
     while readIdx < endIndex {
       _internalInvariant(writeIdx <= readIdx)
 
-      let wasSeparator = isSeparator(self[readIdx])
+      let wasSeparator = _isSeparator(self[readIdx])
       self.swapAt(writeIdx, readIdx)
       self.formIndex(after: &writeIdx)
       self.formIndex(after: &readIdx)
 
-      while wasSeparator, readIdx < endIndex, isSeparator(self[readIdx]) {
+      while wasSeparator, readIdx < endIndex, _isSeparator(self[readIdx]) {
         self.formIndex(after: &readIdx)
       }
     }
@@ -214,12 +207,19 @@ extension _SystemString {
     // If no root in storage (relative portion only), use isRooted directly.
     let effectivelyRooted = isRooted
 
+    // TODO: change below algorithm to remove all those array allocations. All we
+    // really should need to do is have a reader-index and a writer-index and do the
+    // byte swaps in place if there is an interior dot.
+    //
+    // It's also possible in that case that we might be able to fold dots away as part
+    // of separator normalization as one single-pass step, after some more refactoring.
+
     // Split into components
     var components: [[FilePath.CodeUnit]] = []
     var trailingSep = false
     var idx = relStart
     while idx < endIndex {
-      if isSeparator(self[idx]) {
+      if _isSeparator(self[idx]) {
         let next = index(after: idx)
         if next >= endIndex {
           trailingSep = true
@@ -228,7 +228,7 @@ extension _SystemString {
         continue
       }
       let compStart = idx
-      while idx < endIndex && !isSeparator(self[idx]) {
+      while idx < endIndex && !_isSeparator(self[idx]) {
         idx = index(after: idx)
       }
       components.append(Array(self[compStart..<idx]))
@@ -264,18 +264,15 @@ extension _SystemString {
 
     for (i, comp) in normalized.enumerated() {
       if i > 0 {
-        result.append(platformSeparator)
+        result.append(_platformSeparator)
       }
       result.append(contentsOf: comp)
     }
 
     if trailingSep && !normalized.isEmpty {
-      result.append(platformSeparator)
+      result.append(_platformSeparator)
     }
 
     self = _SystemString(result)
-
-    // TODO: remove all those array allocations whenever possible, and probably refactor
-    // or rework this code a little bit.
   }
 }

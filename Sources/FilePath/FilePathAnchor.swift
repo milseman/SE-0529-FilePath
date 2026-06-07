@@ -17,9 +17,9 @@ extension FilePath {
     internal var _path: FilePath
     internal var _end: _SystemString.Index
 
-    internal init(_ path: FilePath, end: _SystemString.Index) {
-      self._path = path
-      self._end = end
+    internal init(_path: FilePath, _end: _SystemString.Index) {
+      self._path = _path
+      self._end = _end
     }
 
     internal var _slice: _SystemString.SubSequence {

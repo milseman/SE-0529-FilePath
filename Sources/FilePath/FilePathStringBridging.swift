@@ -70,7 +70,7 @@ extension FilePath: ExpressibleByStringLiteral {
   @available(SwiftStdlib 9999, *)
   public init?(_ string: String) {
     guard !string.utf8.contains(0) else { return nil }
-    self.init(normalizing: _SystemString(string))
+    self.init(_normalizing: _SystemString(string))
   }
 }
 

@@ -17,10 +17,10 @@ extension FilePath {
     internal var _range: Range<_SystemString.Index>
     internal var _verbatimContext: Bool
 
-    internal init(_ path: FilePath, _ range: Range<_SystemString.Index>, verbatimContext: Bool = false) {
-      self._path = path
-      self._range = range
-      self._verbatimContext = verbatimContext
+    internal init(_path: FilePath, _range: Range<_SystemString.Index>, _verbatimContext: Bool) {
+      self._path = _path
+      self._range = _range
+      self._verbatimContext = _verbatimContext
     }
 
     internal var _slice: _SystemString.SubSequence {
@@ -132,7 +132,7 @@ extension FilePath.Component {
   /// separators. So `a/b` (interior) and `a/` (trailing) are both rejected,
   /// as is any anchored input.
   internal init?(_validating str: _SystemString) {
-    let path = FilePath(normalizing: str)
+    let path = FilePath(_normalizing: str)
     guard path.anchor == nil, !path.hasTrailingSeparator else { return nil }
     let comps = path.components
     guard comps.count == 1 else { return nil }

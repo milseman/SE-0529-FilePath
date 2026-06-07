@@ -29,7 +29,7 @@ public struct FilePath: Sendable {
   // All three platforms coalesce separators first, then parse. Darwin
   // additionally canonicalizes the anchor and excludes the resource-fork
   // suffix from dot-normalization (see _normalizeDarwin).
-  internal init(normalizing str: _SystemString) {
+  internal init(_normalizing str: _SystemString) {
     if _isDarwin {
       self = Self._normalizeDarwin(str)
     } else if _isWindows {
@@ -112,7 +112,7 @@ public struct FilePath: Sendable {
     // Strip a trailing separator from the relative portion when a suffix
     // follows it.
     if !suffixSlice.isEmpty && !relative.isEmpty
-       && isSeparator(relative.last!) {
+       && _isSeparator(relative.last!) {
       relative.removeLast()
     }
 
@@ -139,7 +139,7 @@ public struct FilePath: Sendable {
   /// On Windows, it is the code unit for `\`.
   @available(SwiftStdlib 9999, *)
   public static var separator: FilePath.CodeUnit {
-    platformSeparator
+    _platformSeparator
   }
 
   /// Whether this path is empty.

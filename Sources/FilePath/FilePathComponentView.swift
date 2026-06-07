@@ -29,25 +29,25 @@ extension FilePath {
     internal var _relEnd: _SystemString.Index     // start of suffix (or storage end)
     internal var _suffixEnd: _SystemString.Index  // end of storage
 
-    internal init(_ path: FilePath) {
-      self._path = path
-      let (rootEnd, relBegin) = path._storage._parseRoot()
+    internal init(_path: FilePath) {
+      self._path = _path
+      let (rootEnd, relBegin) = _path._storage._parseRoot()
       self._originalStart = rootEnd
       self._relStart = relBegin
 
-      if _isDarwin, let rsrcStart = path._storage._resourceForkSuffixStart {
+      if _isDarwin, let rsrcStart = _path._storage._resourceForkSuffixStart {
         // If suffix starts before or at the relative region, there are
         // no relative components at all.
         self._relEnd = rsrcStart >= relBegin ? rsrcStart : relBegin
       } else {
-        self._relEnd = path._storage.endIndex
+        self._relEnd = _path._storage.endIndex
       }
-      self._suffixEnd = path._storage.endIndex
+      self._suffixEnd = _path._storage.endIndex
 
       _internalInvariant(_originalStart <= _relStart)
       _internalInvariant(_relStart <= _relEnd)
       _internalInvariant(_relEnd <= _suffixEnd)
-      _internalInvariant(_suffixEnd == path._storage.endIndex)
+      _internalInvariant(_suffixEnd == _path._storage.endIndex)
     }
   }
 }
@@ -65,8 +65,8 @@ extension FilePath.ComponentView {
       lhs._storage < rhs._storage
     }
 
-    internal init(_ idx: _SystemString.Index) {
-      self._storage = idx
+    internal init(_storage: _SystemString.Index) {
+      self._storage = _storage
     }
   }
 }
@@ -77,7 +77,7 @@ extension FilePath.ComponentView {
 extension FilePath.ComponentView {
   internal func _componentEnd(at pos: _SystemString.Index) -> _SystemString.Index {
     var i = pos
-    while i < _relEnd && !isSeparator(_path._storage[i]) {
+    while i < _relEnd && !_isSeparator(_path._storage[i]) {
       _path._storage.formIndex(after: &i)
     }
     return i
@@ -85,7 +85,7 @@ extension FilePath.ComponentView {
 
   internal func _skipSeparators(from pos: _SystemString.Index) -> _SystemString.Index {
     var i = pos
-    while i < _relEnd && isSeparator(_path._storage[i]) {
+    while i < _relEnd && _isSeparator(_path._storage[i]) {
       _path._storage.formIndex(after: &i)
     }
     return i
@@ -102,14 +102,14 @@ extension FilePath.ComponentView: BidirectionalCollection {
   @available(SwiftStdlib 9999, *)
   public var startIndex: Index {
     // Skip gap separator(s) between anchor and first component
-    Index(_skipSeparators(from: _relStart))
+    Index(_storage: _skipSeparators(from: _relStart))
   }
 
   @available(SwiftStdlib 9999, *)
   public var endIndex: Index {
     // endIndex is the end of the iterable (component) region — the start
     // of any suffix (resource fork) or end of storage if no suffix.
-    Index(_relEnd)
+    Index(_storage: _relEnd)
   }
 
   @available(SwiftStdlib 9999, *)
@@ -121,7 +121,7 @@ extension FilePath.ComponentView: BidirectionalCollection {
   public func index(after i: Index) -> Index {
     let compEnd = _componentEnd(at: i._storage)
     let next = _skipSeparators(from: compEnd)
-    return Index(next)
+    return Index(_storage: next)
   }
 
   @available(SwiftStdlib 9999, *)
@@ -129,15 +129,15 @@ extension FilePath.ComponentView: BidirectionalCollection {
     var idx = i._storage
     // Back up past separator(s)
     while idx > startIndex._storage
-          && isSeparator(_path._storage[_path._storage.index(before: idx)]) {
+          && _isSeparator(_path._storage[_path._storage.index(before: idx)]) {
       _path._storage.formIndex(before: &idx)
     }
     // Back up past component bytes
     while idx > startIndex._storage
-          && !isSeparator(_path._storage[_path._storage.index(before: idx)]) {
+          && !_isSeparator(_path._storage[_path._storage.index(before: idx)]) {
       _path._storage.formIndex(before: &idx)
     }
-    return Index(idx)
+    return Index(_storage: idx)
   }
 
   @available(SwiftStdlib 9999, *)
@@ -146,8 +146,8 @@ extension FilePath.ComponentView: BidirectionalCollection {
     _internalInvariant(end > position._storage, "Component must be non-empty")
     let isVerbatim = _isVerbatimComponentPath(_path._storage)
     return FilePath.Component(
-      _path, position._storage..<end,
-      verbatimContext: isVerbatim)
+      _path: _path, _range: position._storage..<end,
+      _verbatimContext: isVerbatim)
   }
 }
 
@@ -163,7 +163,7 @@ extension FilePath.ComponentView: BidirectionalCollection {
 extension FilePath.ComponentView: RangeReplaceableCollection {
   @available(SwiftStdlib 9999, *)
   public init() {
-    self.init(FilePath())
+    self.init(_path: FilePath())
   }
 
   @available(SwiftStdlib 9999, *)
@@ -205,7 +205,7 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
 
       if touchesEnd {
         if adjLower > _relStart
-           && isSeparator(_path._storage[_path._storage.index(before: adjLower)]) {
+           && _isSeparator(_path._storage[_path._storage.index(before: adjLower)]) {
           _path._storage.formIndex(before: &adjLower)
         }
       }
@@ -214,7 +214,7 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
       // Boundary separators
       let needLeadingSep: Bool
       if byteLower > _relStart {
-        needLeadingSep = !isSeparator(
+        needLeadingSep = !_isSeparator(
           _path._storage[_path._storage.index(before: byteLower)])
       } else if _path._storage.startIndex < _relStart {
         // Inserting at the start of the relative region. Add a gap
@@ -231,9 +231,9 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
         // this case (touchesEnd implies the splice consumes everything
         // up to and including any existing suffix bytes).
         _path._storage.removeSubrange(byteLower..<byteUpper)
-        if needLeadingSep { _path._storage.append(platformSeparator) }
+        if needLeadingSep { _path._storage.append(_platformSeparator) }
         for (i, comp) in newArray.enumerated() {
-          if i > 0 { _path._storage.append(platformSeparator) }
+          if i > 0 { _path._storage.append(_platformSeparator) }
           _path._storage.append(contentsOf: comp._slice)
         }
       } else {
@@ -241,15 +241,15 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
         // stay put. We need a single replaceSubrange to keep the
         // tail's index arithmetic straight, which means an intermediary.
         let needTrailingSep =
-          byteUpper < _relEnd && !isSeparator(_path._storage[byteUpper])
+          byteUpper < _relEnd && !_isSeparator(_path._storage[byteUpper])
 
         var bytes = _SystemString()
-        if needLeadingSep { bytes.append(platformSeparator) }
+        if needLeadingSep { bytes.append(_platformSeparator) }
         for (i, comp) in newArray.enumerated() {
-          if i > 0 { bytes.append(platformSeparator) }
+          if i > 0 { bytes.append(_platformSeparator) }
           bytes.append(contentsOf: comp._slice)
         }
-        if needTrailingSep { bytes.append(platformSeparator) }
+        if needTrailingSep { bytes.append(_platformSeparator) }
 
         _path._storage.replaceSubrange(byteLower..<byteUpper, with: bytes)
       }
