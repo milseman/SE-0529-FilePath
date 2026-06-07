@@ -45,8 +45,11 @@ public struct FilePath: Sendable {
     s._normalizeSeparators()
     let (rootEnd, _) = s._parseRoot()
     let isRooted = rootEnd != s.startIndex
-    s._normalizeDots(isVerbatimComponent: false, isRooted: isRooted)
-    return FilePath(_storage: s)
+    var result = _SystemString()
+    result.append(contentsOf: s[s.startIndex..<rootEnd])
+    _ = s._normalizeDots(
+      over: rootEnd..<s.endIndex, isRooted: isRooted, into: &result)
+    return FilePath(_storage: result)
   }
 
   private static func _normalizeWindows(_ str: _SystemString) -> FilePath {
@@ -68,8 +71,16 @@ public struct FilePath: Sendable {
     } else {
       isRooted = false
     }
-    s._normalizeDots(isVerbatimComponent: isVerbatim, isRooted: isRooted)
-    return FilePath(_storage: s)
+    var result = _SystemString()
+    result.append(contentsOf: s[s.startIndex..<rootEnd])
+    if isVerbatim {
+      // Verbatim paths: `.` and `..` are regular component names.
+      result.append(contentsOf: s[rootEnd..<s.endIndex])
+    } else {
+      _ = s._normalizeDots(
+        over: rootEnd..<s.endIndex, isRooted: isRooted, into: &result)
+    }
+    return FilePath(_storage: result)
   }
 
   private static func _normalizeDarwin(_ str: _SystemString) -> FilePath {
@@ -98,37 +109,40 @@ public struct FilePath: Sendable {
       suffixStart = s.endIndex
     }
 
-    // Slice into anchor + gap separator + relative + suffix.
-    let anchorSlice = s[s.startIndex..<rootEnd]
-    let gapSlice = s[rootEnd..<relBegin]
-    let relativeChars = s[relBegin..<suffixStart]
-    let suffixSlice = s[suffixStart..<s.endIndex]
-
-    // Dot-normalize the relative portion only. Separators are already
-    // coalesced and the suffix is excluded from this step.
-    var relative = _SystemString(relativeChars)
-    relative._normalizeDots(isVerbatimComponent: false, isRooted: hasAnchor)
-
-    // Strip a trailing separator from the relative portion when a suffix
-    // follows it.
-    if !suffixSlice.isEmpty && !relative.isEmpty
-       && _isSeparator(relative.last!) {
-      relative.removeLast()
-    }
-
-    // Reassemble: anchor + gap + relative + suffix.
+    // Reassemble: anchor + gap + dot-normalized relative + suffix —
+    // appending the relative portion directly into `result` rather than
+    // through a temporary buffer.
     var result = _SystemString()
-    result.append(contentsOf: anchorSlice)
-    result.append(contentsOf: gapSlice)
-    if !relative.isEmpty && gapSlice.isEmpty && hasAnchor {
-      // Insert a separator between anchor and relative, but only if the
-      // anchor doesn't already end with one.
-      if let last = anchorSlice.last, last != ._slash {
-        result.append(._slash)
-      }
+    result.append(contentsOf: s[s.startIndex..<rootEnd])      // anchor
+    result.append(contentsOf: s[rootEnd..<relBegin])           // gap
+
+    // If the anchor doesn't already end in `/` and there is no gap
+    // separator, we may need to insert one between anchor and relative.
+    // Insert speculatively; roll back if the relative dot-normalizes to
+    // empty.
+    let needsAnchorSep =
+      hasAnchor && rootEnd == relBegin
+      && s[s.index(before: rootEnd)] != ._slash
+    if needsAnchorSep {
+      result.append(._slash)
     }
-    result.append(contentsOf: relative)
-    result.append(contentsOf: suffixSlice)
+
+    let didEmitRelative = s._normalizeDots(
+      over: relBegin..<suffixStart, isRooted: hasAnchor, into: &result)
+
+    if needsAnchorSep && !didEmitRelative {
+      result.removeLast()
+    }
+
+    // Strip a trailing separator on the relative portion when a suffix
+    // follows it.
+    let hasSuffix = suffixStart < s.endIndex
+    if hasSuffix && didEmitRelative
+       && _isSeparator(result[result.index(before: result.endIndex)]) {
+      result.removeLast()
+    }
+
+    result.append(contentsOf: s[suffixStart..<s.endIndex])
 
     return FilePath(_storage: result)
   }

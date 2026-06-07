@@ -106,13 +106,7 @@ extension AllTests.DecompositionTests {
   @Test
   func allCasesDarwin() {
     for tc in pathTestCases {
-      if tc.knownDarwinIssue {
-        expectKnownIssue("double-slash-within-anchor-structure") {
-          runCase(tc, platform: .darwin)
-        }
-      } else {
-        runCase(tc, platform: .darwin)
-      }
+      runCase(tc, platform: .darwin)
     }
   }
 

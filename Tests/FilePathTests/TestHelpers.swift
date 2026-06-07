@@ -38,27 +38,22 @@ struct PathTestCase {
   var linux: Expected
   var darwin: Expected
   var windows: Expected
-  var knownDarwinIssue: Bool
 
   init(
-    input: String, unix: Expected, windows: Expected,
-    knownDarwinIssue: Bool = false
+    input: String, unix: Expected, windows: Expected
   ) {
     self.input = input
     self.linux = unix
     self.darwin = unix
     self.windows = windows
-    self.knownDarwinIssue = knownDarwinIssue
   }
 
   init(
-    input: String, linux: Expected, darwin: Expected, windows: Expected,
-    knownDarwinIssue: Bool = false
+    input: String, linux: Expected, darwin: Expected, windows: Expected
   ) {
     self.input = input
     self.linux = linux
     self.darwin = darwin
     self.windows = windows
-    self.knownDarwinIssue = knownDarwinIssue
   }
 }

@@ -184,95 +184,73 @@ extension _SystemString {
 
 @available(SwiftStdlib 9999, *)
 extension _SystemString {
-  // Drop interior `.` components per the proposal rules:
-  // - `.` is dropped unless it is the first component of a non-rooted path
-  // - Trailing `.` becomes trailing separator (foo/. -> foo/)
-  // - `..` always preserved
-  // - Verbatim Windows paths (\\?\): `.` and `..` are NOT special
+  // Append the dot-normalized form of `self[range]` to `result`, per the
+  // proposal rules:
+  // - `.` is dropped unless it is the leading component of an unrooted path
+  // - Trailing `.` becomes a trailing separator (foo/. -> foo/)
+  // - `..` is always preserved
   //
-  // `isRooted`: whether the original path has a rooted anchor.
-  // When called on an extracted relative portion (no root in storage),
-  // this tells us whether the leading `.` should be dropped.
-  internal mutating func _normalizeDots(
-    isVerbatimComponent: Bool, isRooted: Bool
-  ) {
-    guard !isVerbatimComponent else { return }
-    guard !isEmpty else { return }
+  // `range` is the relative portion to normalize — anchor and gap bytes,
+  // if any, must already be in `result`. Verbatim Windows paths (where
+  // `.` and `..` are regular component names) skip this entirely; the
+  // caller copies bytes verbatim instead.
+  //
+  // `isRooted` controls leading-dot behavior: a leading `.` is dropped
+  // when the path is rooted, kept when not.
+  //
+  // Returns `true` iff at least one component byte was appended. Callers
+  // use this to roll back a speculatively-inserted anchor/relative
+  // separator when the relative portion dot-normalizes to empty.
+  internal func _normalizeDots(
+    over range: Range<Index>,
+    isRooted: Bool,
+    into result: inout _SystemString
+  ) -> Bool {
+    var readIdx = range.lowerBound
+    let end = range.upperBound
+    var componentIndex = 0
+    var emittedAny = false
+    var lastDroppedADot = false
+    var sourceHadTrailingSep = false
 
-    let (rootEnd, relStart) = _parseRoot()
-    let hasRoot = rootEnd != startIndex
-
-    // If the storage has its own root, use the passed isRooted
-    // (the caller knows whether the root is actually rooted).
-    // If no root in storage (relative portion only), use isRooted directly.
-    let effectivelyRooted = isRooted
-
-    // TODO: change below algorithm to remove all those array allocations. All we
-    // really should need to do is have a reader-index and a writer-index and do the
-    // byte swaps in place if there is an interior dot.
-    //
-    // It's also possible in that case that we might be able to fold dots away as part
-    // of separator normalization as one single-pass step, after some more refactoring.
-
-    // Split into components
-    var components: [[FilePath.CodeUnit]] = []
-    var trailingSep = false
-    var idx = relStart
-    while idx < endIndex {
-      if _isSeparator(self[idx]) {
-        let next = index(after: idx)
-        if next >= endIndex {
-          trailingSep = true
+    while readIdx < end {
+      // Skip a separator. If it is the last byte of the range, remember
+      // that the source had a trailing separator.
+      if _isSeparator(self[readIdx]) {
+        let next = index(after: readIdx)
+        if next >= end {
+          sourceHadTrailingSep = true
         }
-        idx = next
+        readIdx = next
         continue
       }
-      let compStart = idx
-      while idx < endIndex && !_isSeparator(self[idx]) {
-        idx = index(after: idx)
+      // Read one component span.
+      let compStart = readIdx
+      while readIdx < end && !_isSeparator(self[readIdx]) {
+        readIdx = index(after: readIdx)
       }
-      components.append(Array(self[compStart..<idx]))
-    }
+      let compEnd = readIdx
+      let compLen = distance(from: compStart, to: compEnd)
+      let isDot = compLen == 1 && self[compStart] == ._dot
 
-    let dotComp: [FilePath.CodeUnit] = [._dot]
-    var normalized: [[FilePath.CodeUnit]] = []
-    var hadTrailingDot = false
-
-    for (i, comp) in components.enumerated() {
-      if comp == dotComp {
-        if i == 0 && !effectivelyRooted {
-          normalized.append(comp)
-        } else {
-          if i == components.count - 1 {
-            hadTrailingDot = true
-          }
-        }
+      // Drop a `.` unless it is the leading component of an unrooted path.
+      let drop = isDot && !(componentIndex == 0 && !isRooted)
+      if drop {
+        lastDroppedADot = true
       } else {
-        normalized.append(comp)
+        if emittedAny {
+          result.append(_platformSeparator)
+        }
+        result.append(contentsOf: self[compStart..<compEnd])
+        emittedAny = true
+        lastDroppedADot = false
       }
+      componentIndex += 1
     }
 
-    if hadTrailingDot {
-      trailingSep = true
-    }
-
-    // Rebuild
-    var result: [FilePath.CodeUnit] = []
-    if hasRoot {
-      result.append(contentsOf: self[startIndex..<relStart])
-    }
-
-    for (i, comp) in normalized.enumerated() {
-      if i > 0 {
-        result.append(_platformSeparator)
-      }
-      result.append(contentsOf: comp)
-    }
-
-    if trailingSep && !normalized.isEmpty {
+    if (sourceHadTrailingSep || lastDroppedADot) && emittedAny {
       result.append(_platformSeparator)
     }
-
-    self = _SystemString(result)
+    return emittedAny
   }
 }
