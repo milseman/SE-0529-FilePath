@@ -53,6 +53,8 @@ extension _SystemString {
     return nil
   }
 
+  // TODO(post-PR): see if we can avoid extra storage for below
+
   // ASCII byte spellings of the Darwin magic-anchor tokens, stored once
   // rather than rebuilt on every call. Indexing arithmetic uses each
   // array's own `.count` (a code-unit count); `String.count` would be a
@@ -154,6 +156,8 @@ extension _SystemString {
 
 @available(SwiftStdlib 9999, *)
 extension _SystemString {
+  // TODO(post-PR): see if we can avoid extra storage
+
   // Full anchor prefixes used by canonicalization, stored once.
   private static let _resolveOneAnchor: [FilePath.CodeUnit] =
     "/.resolve/1/".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
@@ -193,10 +197,8 @@ extension _SystemString {
 
     // Check if fileid is exactly "2"
     let fileidSlice = self[fileidStart..<fileidEnd]
-    let two: [FilePath.CodeUnit] = [FilePath.CodeUnit(_ascii: "2")]
-    if fileidSlice.elementsEqual(two) {
-      let atSign: [FilePath.CodeUnit] = [._at]
-      self.replaceSubrange(fileidStart..<fileidEnd, with: atSign)
+    if fileidSlice.count == 1 && fileidSlice.first == FilePath.CodeUnit(_ascii: "2") {
+      self.replaceSubrange(fileidStart..<fileidEnd, with: CollectionOfOne(._at))
     }
   }
 }

@@ -10,18 +10,12 @@
 import Testing
 @testable import FilePath
 
-// PARTLY migrated onto the TestSupport seam. The platform-INDEPENDENT tests no
-// longer pin the platform: they assert through `universal(...)`
-// (TestSupport.swift), which spells an expected path in the built platform's
-// separator, so each runs unchanged on whatever platform is built. The
-// platform-SPECIFIC tests (Windows drive/UNC/verbatim, Darwin magic anchors /
-// resource forks) wrap their bodies in `withPlatform(.windows)` /
-// `withPlatform(.darwin)`; after the compile-time fold such a body runs only on
-// a matching build and is inert otherwise. The assertions themselves are still
-// direct `#expect` rather than the seam helpers — a deliberately deferred,
-// behavior-neutral migration. The seam is already proven on the table-driven
-// path (DecompositionTests), across all platforms (ValidationTests), and in the
-// Equality / StringBridging / Reconstruction suites.
+// Migrated onto the TestSupport seam: assertions go through the `expect*`
+// helpers and platform-specific bodies are wrapped in
+// `withPlatform(.windows)` / `withPlatform(.darwin)`. Platform-INDEPENDENT
+// tests assert through `universal(...)` (TestSupport.swift), which spells an
+// expected path in the built platform's separator, so each runs unchanged on
+// whatever platform is built.
 
 extension AllTests.ComponentViewTests {
 
@@ -30,24 +24,24 @@ extension AllTests.ComponentViewTests {
   @Test
   func emptyPath() {
     let path = FilePath("")
-    #expect(path.components.isEmpty)
-    #expect(path.components.count == 0)
-    #expect(path.components.startIndex == path.components.endIndex)
+    expectTrue(path.components.isEmpty)
+    expectEqual(path.components.count, 0)
+    expectEqual(path.components.startIndex, path.components.endIndex)
   }
 
   @Test
   func rootOnlyHasNoComponents() {
     let root = FilePath("/")
-    #expect(root.components.isEmpty)
-    #expect(root.anchor != nil)
+    expectTrue(root.components.isEmpty)
+    expectNotNil(root.anchor)
   }
 
   @Test
   func rootOnlyHasNoComponentsWindows() {
     withPlatform(.windows) {
       let winRoot = FilePath(#"C:\"#)
-      #expect(winRoot.components.isEmpty)
-      #expect(winRoot.anchor != nil)
+      expectTrue(winRoot.components.isEmpty)
+      expectNotNil(winRoot.anchor)
     }
   }
 
@@ -55,22 +49,22 @@ extension AllTests.ComponentViewTests {
   func indexTraversal() {
     let path = FilePath("/usr/local/bin")
     let cv = path.components
-    #expect(cv.count == 3)
+    expectEqual(cv.count, 3)
 
     var idx = cv.startIndex
-    #expect(cv[idx].description == "usr")
+    expectEqual(cv[idx].description, "usr")
     idx = cv.index(after: idx)
-    #expect(cv[idx].description == "local")
+    expectEqual(cv[idx].description, "local")
     idx = cv.index(after: idx)
-    #expect(cv[idx].description == "bin")
+    expectEqual(cv[idx].description, "bin")
     idx = cv.index(after: idx)
-    #expect(idx == cv.endIndex)
+    expectEqual(idx, cv.endIndex)
 
     // Reverse traversal
     idx = cv.index(before: cv.endIndex)
-    #expect(cv[idx].description == "bin")
+    expectEqual(cv[idx].description, "bin")
     idx = cv.index(before: idx)
-    #expect(cv[idx].description == "local")
+    expectEqual(cv[idx].description, "local")
   }
 
   // MARK: - append
@@ -80,8 +74,8 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b")
     path.components.append("c")
 
-    #expect(path.description == universal("a/b/c"))
-    #expect(path.components.map(\.description) == ["a", "b", "c"])
+    expectEqual(path.description, universal("a/b/c"))
+    expectEqual(path.components.map(\.description), ["a", "b", "c"])
   }
 
   @Test
@@ -89,8 +83,8 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr")
     path.components.append("local")
 
-    #expect(path.description == universal("/usr/local"))
-    #expect(path.anchor?.description == universal("/"))
+    expectEqual(path.description, universal("/usr/local"))
+    expectEqual(path.anchor?.description, universal("/"))
   }
 
   @Test
@@ -98,7 +92,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("")
     path.components.append("hello")
 
-    #expect(path.description == "hello")
+    expectEqual(path.description, "hello")
   }
 
   @Test
@@ -106,8 +100,8 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/")
     path.components.append("usr")
 
-    #expect(path.description == universal("/usr"))
-    #expect(path.anchor?.description == universal("/"))
+    expectEqual(path.description, universal("/usr"))
+    expectEqual(path.anchor?.description, universal("/"))
   }
 
   @Test
@@ -115,7 +109,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr")
     path.components.append(contentsOf: ["local", "bin"] as [FilePath.Component])
 
-    #expect(path.description == universal("/usr/local/bin"))
+    expectEqual(path.description, universal("/usr/local/bin"))
   }
 
   // MARK: - insert
@@ -125,7 +119,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/local/bin")
     path.components.insert("usr", at: path.components.idx(0))
 
-    #expect(path.description == universal("/usr/local/bin"))
+    expectEqual(path.description, universal("/usr/local/bin"))
   }
 
   @Test
@@ -133,7 +127,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr/bin")
     path.components.insert("local", at: path.components.idx(1))
 
-    #expect(path.description == universal("/usr/local/bin"))
+    expectEqual(path.description, universal("/usr/local/bin"))
   }
 
   @Test
@@ -141,7 +135,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr/local")
     path.components.insert("bin", at: path.components.endIndex)
 
-    #expect(path.description == universal("/usr/local/bin"))
+    expectEqual(path.description, universal("/usr/local/bin"))
   }
 
   // MARK: - remove
@@ -151,8 +145,8 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr/local/bin")
     path.components.removeFirst()
 
-    #expect(path.description == universal("/local/bin"))
-    #expect(path.anchor?.description == universal("/"))
+    expectEqual(path.description, universal("/local/bin"))
+    expectEqual(path.anchor?.description, universal("/"))
   }
 
   @Test
@@ -160,7 +154,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr/local/bin")
     path.components.removeLast()
 
-    #expect(path.description == universal("/usr/local"))
+    expectEqual(path.description, universal("/usr/local"))
   }
 
   @Test
@@ -168,7 +162,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/usr/local/bin")
     path.components.remove(at: path.components.idx(1))
 
-    #expect(path.description == universal("/usr/bin"))
+    expectEqual(path.description, universal("/usr/bin"))
   }
 
   @Test
@@ -179,9 +173,9 @@ extension AllTests.ComponentViewTests {
     path.components = cv
 
     // Anchor is preserved, components are gone
-    #expect(path.description == universal("/"))
-    #expect(path.anchor?.description == universal("/"))
-    #expect(path.components.isEmpty)
+    expectEqual(path.description, universal("/"))
+    expectEqual(path.anchor?.description, universal("/"))
+    expectTrue(path.components.isEmpty)
   }
 
   @Test
@@ -189,8 +183,8 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b/c")
     path.components.removeAll()
 
-    #expect(path.description == "")
-    #expect(path.isEmpty)
+    expectEqual(path.description, "")
+    expectTrue(path.isEmpty)
   }
 
   // MARK: - replaceSubrange
@@ -202,7 +196,7 @@ extension AllTests.ComponentViewTests {
       path.components.range(1..<2),
       with: ["share", "man"] as [FilePath.Component])
 
-    #expect(path.description == universal("/usr/share/man/bin"))
+    expectEqual(path.description, universal("/usr/share/man/bin"))
   }
 
   @Test
@@ -212,8 +206,8 @@ extension AllTests.ComponentViewTests {
       path.components.startIndex..<path.components.endIndex,
       with: ["new", "path"] as [FilePath.Component])
 
-    #expect(path.description == universal("/new/path"))
-    #expect(path.anchor?.description == universal("/"))
+    expectEqual(path.description, universal("/new/path"))
+    expectEqual(path.anchor?.description, universal("/"))
   }
 
   @Test
@@ -222,7 +216,7 @@ extension AllTests.ComponentViewTests {
     path.components.replaceSubrange(
       path.components.range(1..<3), with: [] as [FilePath.Component])
 
-    #expect(path.description == universal("/usr"))
+    expectEqual(path.description, universal("/usr"))
   }
 
   @Test
@@ -232,7 +226,7 @@ extension AllTests.ComponentViewTests {
       path.components.range(1..<1),
       with: ["local"] as [FilePath.Component])
 
-    #expect(path.description == universal("/usr/local/bin"))
+    expectEqual(path.description, universal("/usr/local/bin"))
   }
 
   // MARK: - Normalization interactions
@@ -242,10 +236,10 @@ extension AllTests.ComponentViewTests {
     // Component.init normalizes through FilePath, so "." as a
     // single component is `.currentDirectory` kind
     let dot: FilePath.Component = "."
-    #expect(dot.kind == .currentDirectory)
+    expectEqual(dot.kind, .currentDirectory)
 
     let dotdot: FilePath.Component = ".."
-    #expect(dotdot.kind == .parentDirectory)
+    expectEqual(dotdot.kind, .parentDirectory)
   }
 
   @Test
@@ -256,8 +250,8 @@ extension AllTests.ComponentViewTests {
     path.components = cv
 
     // ".." is preserved as a component (no lexical collapsing)
-    #expect(path.components.map(\.description) == ["usr", "local", ".."])
-    #expect(path.description == universal("/usr/local/.."))
+    expectEqual(path.components.map(\.description), ["usr", "local", ".."])
+    expectEqual(path.description, universal("/usr/local/.."))
   }
 
   @Test
@@ -267,8 +261,8 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b")
     path.components.append(".")
 
-    #expect(path.components.map(\.description) == ["a", "b", "."])
-    #expect(path.description == universal("a/b/."))
+    expectEqual(path.components.map(\.description), ["a", "b", "."])
+    expectEqual(path.description, universal("a/b/."))
   }
 
   @Test
@@ -277,20 +271,20 @@ extension AllTests.ComponentViewTests {
     // So Component("a//b") is nil (normalizes to multi-component path)
     let str1: String = "a//b"
     let multiComp: FilePath.Component? = .init(str1)
-    #expect(multiComp == nil)
+    expectNil(multiComp)
     let str2: String = "a/b"
     let withSlash: FilePath.Component? = .init(str2)
-    #expect(withSlash == nil)
+    expectNil(withSlash)
     let str3: String = "/"
     let rootOnly: FilePath.Component? = .init(str3)
-    #expect(rootOnly == nil)
+    expectNil(rootOnly)
     let str4: String = ""
     let empty: FilePath.Component? = .init(str4)
-    #expect(empty == nil)
+    expectNil(empty)
     let str5: String = "hello"
     let valid: FilePath.Component? = .init(str5)
-    #expect(valid != nil)
-    #expect(valid?.description == "hello")
+    expectNotNil(valid)
+    expectEqual(valid?.description, "hello")
   }
 
   // MARK: - Windows platform
@@ -301,8 +295,8 @@ extension AllTests.ComponentViewTests {
       var path = FilePath(#"C:\Users"#)
       path.components.append("Admin")
 
-      #expect(path.description == #"C:\Users\Admin"#)
-      #expect(path.anchor?.description == #"C:\"#)
+      expectEqual(path.description, #"C:\Users\Admin"#)
+      expectEqual(path.anchor?.description, #"C:\"#)
     }
   }
 
@@ -315,8 +309,8 @@ extension AllTests.ComponentViewTests {
       path.components = cv
 
       // C: anchor (no backslash) — components follow directly
-      #expect(path.description == #"C:src\main.swift"#)
-      #expect(path.anchor?.description == "C:")
+      expectEqual(path.description, #"C:src\main.swift"#)
+      expectEqual(path.anchor?.description, "C:")
     }
   }
 
@@ -326,7 +320,7 @@ extension AllTests.ComponentViewTests {
       var path = FilePath(#"C:\Users\Admin\file.txt"#)
       path.components.removeLast()
 
-      #expect(path.description == #"C:\Users\Admin"#)
+      expectEqual(path.description, #"C:\Users\Admin"#)
     }
   }
 
@@ -336,7 +330,7 @@ extension AllTests.ComponentViewTests {
       var path = FilePath(#"\\server\share"#)
       path.components.append("folder")
 
-      #expect(path.description == #"\\server\share\folder"#)
+      expectEqual(path.description, #"\\server\share\folder"#)
     }
   }
 
@@ -348,7 +342,7 @@ extension AllTests.ComponentViewTests {
         path.components.startIndex..<path.components.endIndex,
         with: ["new", "things"] as [FilePath.Component])
 
-      #expect(path.description == #"C:\new\things"#)
+      expectEqual(path.description, #"C:\new\things"#)
     }
   }
 
@@ -364,8 +358,8 @@ extension AllTests.ComponentViewTests {
     cv.append("etc")
     path.components = cv
 
-    #expect(path.anchor == originalAnchor)
-    #expect(path.description == universal("/etc"))
+    expectEqual(path.anchor, originalAnchor)
+    expectEqual(path.description, universal("/etc"))
   }
 
   @Test
@@ -376,8 +370,8 @@ extension AllTests.ComponentViewTests {
     cv.replaceSubrange(cv.startIndex..<cv.endIndex, with: ["x", "y"] as [FilePath.Component])
     path.components = cv
 
-    #expect(path.anchor == nil)
-    #expect(path.description == universal("x/y"))
+    expectNil(path.anchor)
+    expectEqual(path.description, universal("x/y"))
   }
 
   @Test
@@ -391,8 +385,8 @@ extension AllTests.ComponentViewTests {
       cv.append("new")
       path.components = cv
 
-      #expect(path.anchor == originalAnchor)
-      #expect(path.description == #"\\server\share\new"#)
+      expectEqual(path.anchor, originalAnchor)
+      expectEqual(path.description, #"\\server\share\new"#)
     }
   }
 
@@ -402,10 +396,10 @@ extension AllTests.ComponentViewTests {
   func componentViewEquality() {
     let a = FilePath("/usr/local/bin")
     let b = FilePath("/usr/local/bin")
-    #expect(a.components == b.components)
+    expectEqual(a.components, b.components)
 
     let c = FilePath("/usr/local")
-    #expect(a.components != c.components)
+    expectNotEqual(a.components, c.components)
   }
 
   @Test
@@ -413,8 +407,8 @@ extension AllTests.ComponentViewTests {
     let a = FilePath("a/b").components
     let b = FilePath("a/c").components
     let c = FilePath("a/b/c").components
-    #expect(a < b)
-    #expect(a < c) // prefix is less
+    expectTrue(a < b)
+    expectTrue(a < c) // prefix is less
   }
 
   // MARK: - Derived Collection operations
@@ -425,21 +419,21 @@ extension AllTests.ComponentViewTests {
     let even = path.components.enumerated()
       .filter { $0.offset % 2 == 0 }
       .map(\.element)
-    #expect(even.map(\.description) == ["a", "c"])
+    expectEqual(even.map(\.description), ["a", "c"])
   }
 
   @Test
   func map() {
     let path = FilePath("/usr/local/bin")
     let names = path.components.map(\.description)
-    #expect(names == ["usr", "local", "bin"])
+    expectEqual(names, ["usr", "local", "bin"])
   }
 
   @Test
   func reversed() {
     let path = FilePath("a/b/c")
     let rev = path.components.reversed().map(\.description)
-    #expect(rev == ["c", "b", "a"])
+    expectEqual(rev, ["c", "b", "a"])
   }
 
   @Test
@@ -449,7 +443,7 @@ extension AllTests.ComponentViewTests {
     path.components.replaceSubrange(
       path.components.startIndex..<path.components.endIndex, with: first2)
 
-    #expect(path.description == universal("/usr/local"))
+    expectEqual(path.description, universal("/usr/local"))
   }
 
   @Test
@@ -459,7 +453,7 @@ extension AllTests.ComponentViewTests {
     path.components.replaceSubrange(
       path.components.startIndex..<path.components.endIndex, with: tail)
 
-    #expect(path.description == universal("/local/bin"))
+    expectEqual(path.description, universal("/local/bin"))
   }
 
   // MARK: - Round-trip through ComponentView init()
@@ -473,7 +467,7 @@ extension AllTests.ComponentViewTests {
 
     var path = FilePath("/")
     path.components = cv
-    #expect(path.description == universal("/usr/local/bin"))
+    expectEqual(path.description, universal("/usr/local/bin"))
   }
 
   @Test
@@ -484,7 +478,7 @@ extension AllTests.ComponentViewTests {
 
     var path = FilePath()
     path.components = cv
-    #expect(path.description == universal("src/main.swift"))
+    expectEqual(path.description, universal("src/main.swift"))
   }
 
   @Test
@@ -497,7 +491,7 @@ extension AllTests.ComponentViewTests {
 
       var path = FilePath(#"C:\"#)
       path.components = cv
-      #expect(path.description == #"C:\Users\Admin\Documents"#)
+      expectEqual(path.description, #"C:\Users\Admin\Documents"#)
     }
   }
 
@@ -506,11 +500,11 @@ extension AllTests.ComponentViewTests {
   @Test
   func singleComponentPath() {
     var path = FilePath("hello")
-    #expect(path.components.count == 1)
-    #expect(path.components.first?.description == "hello")
+    expectEqual(path.components.count, 1)
+    expectEqual(path.components.first?.description, "hello")
 
     path.components.removeLast()
-    #expect(path.isEmpty)
+    expectTrue(path.isEmpty)
   }
 
   @Test
@@ -521,8 +515,8 @@ extension AllTests.ComponentViewTests {
       path.components.append(FilePath.Component(name)!)
     }
 
-    #expect(path.components.count == 5)
-    #expect(path.description == universal("/a/b/c/d/e"))
+    expectEqual(path.components.count, 5)
+    expectEqual(path.description, universal("/a/b/c/d/e"))
   }
 
   @Test
@@ -536,8 +530,8 @@ extension AllTests.ComponentViewTests {
         "new" as FilePath.Component,
       ])
 
-    #expect(path.anchor == anchor)
-    #expect(path.components.map(\.description) == ["completely", "new"])
+    expectEqual(path.anchor, anchor)
+    expectEqual(path.components.map(\.description), ["completely", "new"])
   }
 
   // MARK: - Suffix semantics on mutation
@@ -547,59 +541,59 @@ extension AllTests.ComponentViewTests {
   @Test
   func trailingSepStrippedOnRemoveLast() {
     var path = FilePath("a/b/c/")
-    #expect(path.hasTrailingSeparator)
+    expectTrue(path.hasTrailingSeparator)
 
     path.components.removeLast()
 
-    #expect(!path.hasTrailingSeparator)
-    #expect(path.description == universal("a/b"))
+    expectFalse(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("a/b"))
   }
 
   @Test
   func trailingSepStrippedOnReplaceLast() {
     var path = FilePath("a/b/c/")
-    #expect(path.hasTrailingSeparator)
+    expectTrue(path.hasTrailingSeparator)
 
     path.components.replaceSubrange(
       path.components.index(before: path.components.endIndex) ..< path.components.endIndex,
       with: ["d" as FilePath.Component])
 
-    #expect(!path.hasTrailingSeparator)
-    #expect(path.description == universal("a/b/d"))
+    expectFalse(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("a/b/d"))
   }
 
   @Test
   func trailingSepStrippedOnRemoveAll() {
     var path = FilePath("a/b/c/")
-    #expect(path.hasTrailingSeparator)
+    expectTrue(path.hasTrailingSeparator)
 
     path.components.removeAll()
 
-    #expect(!path.hasTrailingSeparator)
-    #expect(path.description == "")
+    expectFalse(path.hasTrailingSeparator)
+    expectEqual(path.description, "")
   }
 
   @Test
   func trailingSepStrippedOnRemoveAllAbsolute() {
     var path = FilePath("/a/b/c/")
-    #expect(path.hasTrailingSeparator)
+    expectTrue(path.hasTrailingSeparator)
 
     path.components.removeAll()
 
-    #expect(!path.hasTrailingSeparator)
-    #expect(path.description == universal("/"))
+    expectFalse(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("/"))
   }
 
   @Test
   func windowsTrailingSepStrippedOnRemoveLast() {
     withPlatform(.windows) {
       var path = FilePath(#"C:\Users\Admin\"#)
-      #expect(path.hasTrailingSeparator)
+      expectTrue(path.hasTrailingSeparator)
 
       path.components.removeLast()
 
-      #expect(!path.hasTrailingSeparator)
-      #expect(path.description == #"C:\Users"#)
+      expectFalse(path.hasTrailingSeparator)
+      expectEqual(path.description, #"C:\Users"#)
     }
   }
 
@@ -608,12 +602,12 @@ extension AllTests.ComponentViewTests {
   @Test
   func trailingSepPreservedOnInsertFirst() {
     var path = FilePath("a/b/c/")
-    #expect(path.hasTrailingSeparator)
+    expectTrue(path.hasTrailingSeparator)
 
     path.components.insert("z", at: path.components.idx(0))
 
-    #expect(path.hasTrailingSeparator)
-    #expect(path.description == universal("z/a/b/c/"))
+    expectTrue(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("z/a/b/c/"))
   }
 
   @Test
@@ -624,8 +618,8 @@ extension AllTests.ComponentViewTests {
       path.components.range(0..<1),
       with: ["x" as FilePath.Component])
 
-    #expect(path.hasTrailingSeparator)
-    #expect(path.description == universal("x/b/c/"))
+    expectTrue(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("x/b/c/"))
   }
 
   @Test
@@ -634,8 +628,8 @@ extension AllTests.ComponentViewTests {
 
     path.components.removeFirst()
 
-    #expect(path.hasTrailingSeparator)
-    #expect(path.description == universal("b/c/"))
+    expectTrue(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("b/c/"))
   }
 
   @Test
@@ -644,8 +638,8 @@ extension AllTests.ComponentViewTests {
 
     path.components.insert("b", at: path.components.idx(1))
 
-    #expect(path.hasTrailingSeparator)
-    #expect(path.description == universal("/a/b/c/"))
+    expectTrue(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("/a/b/c/"))
   }
 
   @Test
@@ -654,8 +648,8 @@ extension AllTests.ComponentViewTests {
     let cv = path.components
     path.components = cv
 
-    #expect(path.hasTrailingSeparator)
-    #expect(path.description == universal("a/b/c/"))
+    expectTrue(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("a/b/c/"))
   }
 
   @Test
@@ -664,13 +658,13 @@ extension AllTests.ComponentViewTests {
     // trailing sep. Setting empty components back preserves it.
     withPlatform(.windows) {
       var path = FilePath(#"\\server\share\"#)
-      #expect(path.hasTrailingSeparator)
-      #expect(path.components.isEmpty)
+      expectTrue(path.hasTrailingSeparator)
+      expectTrue(path.components.isEmpty)
 
       let cv = path.components
       path.components = cv
 
-      #expect(path.hasTrailingSeparator)
+      expectTrue(path.hasTrailingSeparator)
     }
   }
 
@@ -679,23 +673,23 @@ extension AllTests.ComponentViewTests {
   @Test
   func trailingSepOnAppend() {
     var path = FilePath("a/b/")
-    #expect(path.hasTrailingSeparator)
+    expectTrue(path.hasTrailingSeparator)
 
     path.components.append("c")
 
-    #expect(!path.hasTrailingSeparator)
-    #expect(path.description == universal("a/b/c"))
+    expectFalse(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("a/b/c"))
   }
 
   @Test
   func trailingSepOnAppendContentsOf() {
     var path = FilePath("/dir/")
-    #expect(path.hasTrailingSeparator)
+    expectTrue(path.hasTrailingSeparator)
 
     path.components.append(contentsOf: ["sub", "file"] as [FilePath.Component])
 
-    #expect(!path.hasTrailingSeparator)
-    #expect(path.description == universal("/dir/sub/file"))
+    expectFalse(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("/dir/sub/file"))
   }
 
   // -- Resource fork: strip on remove/replace (Darwin) --
@@ -704,13 +698,13 @@ extension AllTests.ComponentViewTests {
   func resourceForkStrippedOnRemoveLast() {
     withPlatform(.darwin) {
       var path = FilePath("/dir/file/..namedfork/rsrc")
-      #expect(path.isResourceFork)
-      #expect(path.components.map(\.description) == ["dir", "file"])
+      expectTrue(path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["dir", "file"])
 
       path.components.removeLast()
 
-      #expect(!path.isResourceFork)
-      #expect(path.description == "/dir")
+      expectFalse(path.isResourceFork)
+      expectEqual(path.description, "/dir")
     }
   }
 
@@ -718,15 +712,15 @@ extension AllTests.ComponentViewTests {
   func resourceForkStrippedOnReplaceLast() {
     withPlatform(.darwin) {
       var path = FilePath("/file/..namedfork/rsrc")
-      #expect(path.isResourceFork)
-      #expect(path.components.map(\.description) == ["file"])
+      expectTrue(path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["file"])
 
       path.components.replaceSubrange(
         path.components.range(0..<1),
         with: ["other" as FilePath.Component])
 
-      #expect(!path.isResourceFork)
-      #expect(path.description == "/other")
+      expectFalse(path.isResourceFork)
+      expectEqual(path.description, "/other")
     }
   }
 
@@ -734,12 +728,12 @@ extension AllTests.ComponentViewTests {
   func resourceForkStrippedOnRemoveAll() {
     withPlatform(.darwin) {
       var path = FilePath("/file/..namedfork/rsrc")
-      #expect(path.isResourceFork)
+      expectTrue(path.isResourceFork)
 
       path.components.removeAll()
 
-      #expect(!path.isResourceFork)
-      #expect(path.description == "/")
+      expectFalse(path.isResourceFork)
+      expectEqual(path.description, "/")
     }
   }
 
@@ -749,13 +743,13 @@ extension AllTests.ComponentViewTests {
   func resourceForkPreservedOnInsert() {
     withPlatform(.darwin) {
       var path = FilePath("/file/..namedfork/rsrc")
-      #expect(path.isResourceFork)
-      #expect(path.components.map(\.description) == ["file"])
+      expectTrue(path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["file"])
 
       path.components.insert("dir", at: path.components.idx(0))
 
-      #expect(path.isResourceFork)
-      #expect(path.components.map(\.description) == ["dir", "file"])
+      expectTrue(path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["dir", "file"])
     }
   }
 
@@ -763,12 +757,12 @@ extension AllTests.ComponentViewTests {
   func resourceForkPreservedOnNoChange() {
     withPlatform(.darwin) {
       var path = FilePath("/file/..namedfork/rsrc")
-      #expect(path.isResourceFork)
+      expectTrue(path.isResourceFork)
 
       let cv = path.components
       path.components = cv
 
-      #expect(path.isResourceFork)
+      expectTrue(path.isResourceFork)
     }
   }
 
@@ -778,12 +772,12 @@ extension AllTests.ComponentViewTests {
   func resourceForkOnAppend() {
     withPlatform(.darwin) {
       var path = FilePath("/file/..namedfork/rsrc")
-      #expect(path.isResourceFork)
+      expectTrue(path.isResourceFork)
 
       path.components.append("extra")
 
-      #expect(!path.isResourceFork)
-      #expect(path.description == "/file/extra")
+      expectFalse(path.isResourceFork)
+      expectEqual(path.description, "/file/extra")
     }
   }
 
@@ -801,8 +795,8 @@ extension AllTests.ComponentViewTests {
   func trailingSepStrippedOnRemoveLastEvenWithEqualNeighbor() {
     var path = FilePath("/a/b/b/")
     path.components.removeLast()
-    #expect(!path.hasTrailingSeparator)
-    #expect(path.description == universal("/a/b"))
+    expectFalse(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("/a/b"))
   }
 
   @Test
@@ -811,18 +805,18 @@ extension AllTests.ComponentViewTests {
     path.components.replaceSubrange(
       path.components.startIndex..<path.components.endIndex,
       with: ["x", "y", "c"] as [FilePath.Component])
-    #expect(!path.hasTrailingSeparator)
-    #expect(path.description == universal("/x/y/c"))
+    expectFalse(path.hasTrailingSeparator)
+    expectEqual(path.description, universal("/x/y/c"))
   }
 
   @Test
   func removeAllOnUNCDropsGapSeparator() {
     withPlatform(.windows) {
       var path = FilePath(#"\\server\share\"#)
-      #expect(path.hasTrailingSeparator)
+      expectTrue(path.hasTrailingSeparator)
       path.components.removeAll()
-      #expect(!path.hasTrailingSeparator)
-      #expect(path.description == #"\\server\share"#)
+      expectFalse(path.hasTrailingSeparator)
+      expectEqual(path.description, #"\\server\share"#)
     }
   }
 
@@ -837,10 +831,10 @@ extension AllTests.ComponentViewTests {
   func removeAllUNCWithComponentsDropsGapSep() {
     withPlatform(.windows) {
       var path = FilePath(#"\\server\share\foo\bar"#)
-      #expect(path.components.map(\.description) == ["foo", "bar"])
+      expectEqual(path.components.map(\.description), ["foo", "bar"])
       path.components.removeAll()
-      #expect(path.description == #"\\server\share"#)
-      #expect(!path.hasTrailingSeparator)
+      expectEqual(path.description, #"\\server\share"#)
+      expectFalse(path.hasTrailingSeparator)
     }
   }
 
@@ -849,7 +843,7 @@ extension AllTests.ComponentViewTests {
     withPlatform(.windows) {
       var path = FilePath(#"C:\foo\bar"#)
       path.components.removeAll()
-      #expect(path.description == #"C:\"#)
+      expectEqual(path.description, #"C:\"#)
     }
   }
 
@@ -858,7 +852,7 @@ extension AllTests.ComponentViewTests {
     withPlatform(.windows) {
       var path = FilePath(#"C:foo\bar"#)
       path.components.removeAll()
-      #expect(path.description == "C:")
+      expectEqual(path.description, "C:")
     }
   }
 
@@ -867,7 +861,7 @@ extension AllTests.ComponentViewTests {
     withPlatform(.windows) {
       var path = FilePath(#"\\?\C:\foo\bar"#)
       path.components.removeAll()
-      #expect(path.description == #"\\?\C:\"#)
+      expectEqual(path.description, #"\\?\C:\"#)
     }
   }
 
@@ -876,7 +870,7 @@ extension AllTests.ComponentViewTests {
     withPlatform(.windows) {
       var path = FilePath(#"\\?\UNC\server\share\foo"#)
       path.components.removeAll()
-      #expect(path.description == #"\\?\UNC\server\share"#)
+      expectEqual(path.description, #"\\?\UNC\server\share"#)
     }
   }
 
@@ -885,7 +879,7 @@ extension AllTests.ComponentViewTests {
     withPlatform(.windows) {
       var path = FilePath(#"\\?\name\foo"#)
       path.components.removeAll()
-      #expect(path.description == #"\\?\name"#)
+      expectEqual(path.description, #"\\?\name"#)
     }
   }
 
@@ -902,11 +896,11 @@ extension AllTests.ComponentViewTests {
     // be drive-absolute, a different anchor shape).
     withPlatform(.windows) {
       var path = FilePath("C:")
-      #expect(path.anchor?.description == "C:")
+      expectEqual(path.anchor?.description, "C:")
       path.components.append("foo")
-      #expect(path.description == "C:foo")
-      #expect(path.anchor?.description == "C:")
-      #expect(path.components.map(\.description) == ["foo"])
+      expectEqual(path.description, "C:foo")
+      expectEqual(path.anchor?.description, "C:")
+      expectEqual(path.components.map(\.description), ["foo"])
     }
   }
 
@@ -916,8 +910,8 @@ extension AllTests.ComponentViewTests {
       var path = FilePath("C:")
       path.components.append("foo")
       path.components.append("bar")
-      #expect(path.description == #"C:foo\bar"#)
-      #expect(path.anchor?.description == "C:")
+      expectEqual(path.description, #"C:foo\bar"#)
+      expectEqual(path.anchor?.description, "C:")
     }
   }
 
@@ -928,8 +922,8 @@ extension AllTests.ComponentViewTests {
       var cv = FilePath.ComponentView()
       cv.append("foo")
       path.components = cv
-      #expect(path.description == "C:foo")
-      #expect(path.anchor?.description == "C:")
+      expectEqual(path.description, "C:foo")
+      expectEqual(path.anchor?.description, "C:")
     }
   }
 
@@ -940,11 +934,11 @@ extension AllTests.ComponentViewTests {
     // separator — the `:`-skips-gap-sep rule is Windows-specific.
     withPlatform(.darwin) {
       var path = FilePath("/.vol/12345/67890:")
-      #expect(path.anchor?.description == "/.vol/12345/67890:")
+      expectEqual(path.anchor?.description, "/.vol/12345/67890:")
       path.components.append("foo")
-      #expect(path.description == "/.vol/12345/67890:/foo")
-      #expect(path.anchor?.description == "/.vol/12345/67890:")
-      #expect(path.components.map(\.description) == ["foo"])
+      expectEqual(path.description, "/.vol/12345/67890:/foo")
+      expectEqual(path.anchor?.description, "/.vol/12345/67890:")
+      expectEqual(path.components.map(\.description), ["foo"])
     }
   }
 
@@ -955,8 +949,8 @@ extension AllTests.ComponentViewTests {
       var cv = FilePath.ComponentView()
       cv.append("foo")
       path.components = cv
-      #expect(path.description == "/.vol/12345/67890:/foo")
-      #expect(path.anchor?.description == "/.vol/12345/67890:")
+      expectEqual(path.description, "/.vol/12345/67890:/foo")
+      expectEqual(path.anchor?.description, "/.vol/12345/67890:")
     }
   }
 
@@ -967,10 +961,10 @@ extension AllTests.ComponentViewTests {
     // gap separator must be added on append.
     withPlatform(.windows) {
       var path = FilePath(#"\\server\C:"#)
-      #expect(path.anchor?.description == #"\\server\C:"#)
+      expectEqual(path.anchor?.description, #"\\server\C:"#)
       path.components.append("foo")
-      #expect(path.description == #"\\server\C:\foo"#)
-      #expect(path.anchor?.description == #"\\server\C:"#)
+      expectEqual(path.description, #"\\server\C:\foo"#)
+      expectEqual(path.anchor?.description, #"\\server\C:"#)
     }
   }
 
@@ -981,7 +975,7 @@ extension AllTests.ComponentViewTests {
       var cv = FilePath.ComponentView()
       cv.append("foo")
       path.components = cv
-      #expect(path.description == #"\\server\C:\foo"#)
+      expectEqual(path.description, #"\\server\C:\foo"#)
     }
   }
 
@@ -990,10 +984,10 @@ extension AllTests.ComponentViewTests {
   @Test
   func appendAfterTrailingSepAbsorbs() {
     var path = FilePath("/foo/")
-    #expect(path.hasTrailingSeparator)
+    expectTrue(path.hasTrailingSeparator)
     path.components.append("bar")
-    #expect(path.description == universal("/foo/bar"))
-    #expect(!path.hasTrailingSeparator)
+    expectEqual(path.description, universal("/foo/bar"))
+    expectFalse(path.hasTrailingSeparator)
   }
 
   @Test
@@ -1001,7 +995,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("/a/b/c")
     let last = path.components.index(before: path.components.endIndex)
     path.components.replaceSubrange(last..<path.components.endIndex, with: [])
-    #expect(path.description == universal("/a/b"))
+    expectEqual(path.description, universal("/a/b"))
   }
 
   @Test
@@ -1011,13 +1005,13 @@ extension AllTests.ComponentViewTests {
     // suffix region is untouched.
     withPlatform(.darwin) {
       var path = FilePath("/foo/bar/..namedfork/rsrc")
-      #expect(path.isResourceFork)
-      #expect(path.components.map(\.description) == ["foo", "bar"])
+      expectTrue(path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["foo", "bar"])
       let afterFoo = path.components.index(after: path.components.startIndex)
       path.components.insert("x", at: afterFoo)
-      #expect(path.description == "/foo/x/bar/..namedfork/rsrc")
-      #expect(path.isResourceFork)
-      #expect(path.components.map(\.description) == ["foo", "x", "bar"])
+      expectEqual(path.description, "/foo/x/bar/..namedfork/rsrc")
+      expectTrue(path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["foo", "x", "bar"])
     }
   }
 
@@ -1037,7 +1031,7 @@ extension AllTests.ComponentViewTests {
       var path = FilePath(#"\foo"#)
       let cv = FilePath(#"C:\bar"#).components
       path.components = cv
-      #expect(path.description == #"\bar"#)
+      expectEqual(path.description, #"\bar"#)
     }
   }
 
@@ -1048,7 +1042,7 @@ extension AllTests.ComponentViewTests {
     var path = FilePath("a/b")
     let cv = FilePath("/foo").components
     path.components = cv
-    #expect(path.description == "foo")
+    expectEqual(path.description, "foo")
   }
 
   @Test
@@ -1061,14 +1055,14 @@ extension AllTests.ComponentViewTests {
 
       var inPlace = FilePath("/foo/bar")
       inPlace.components.insert(".nofollow", at: inPlace.components.startIndex)
-      #expect(inPlace.description == "/.nofollow/foo/bar")
+      expectEqual(inPlace.description, "/.nofollow/foo/bar")
 
       var assigned = FilePath("/foo/bar")
       var cv = assigned.components
       cv.insert(".nofollow", at: cv.startIndex)
       assigned.components = cv
 
-      #expect(assigned.description == inPlace.description)
+      expectEqual(assigned.description, inPlace.description)
     }
   }
 
@@ -1082,15 +1076,15 @@ extension AllTests.ComponentViewTests {
     // rather than the caller's per-component intent.
     withPlatform(.darwin) {
       var path = FilePath("/foo/bar")
-      #expect(path.anchor?.description == "/")
+      expectEqual(path.anchor?.description, "/")
 
       var cv = path.components
       cv.insert(".nofollow", at: cv.idx(0))
       path.components = cv
 
-      #expect(path.description == "/.nofollow/foo/bar")
-      #expect(path.anchor?.description == "/.nofollow/")
-      #expect(path.components.map(\.description) == ["foo", "bar"])
+      expectEqual(path.description, "/.nofollow/foo/bar")
+      expectEqual(path.anchor?.description, "/.nofollow/")
+      expectEqual(path.components.map(\.description), ["foo", "bar"])
     }
   }
 
@@ -1105,13 +1099,13 @@ extension AllTests.ComponentViewTests {
       cv.insert(".resolve", at: cv.idx(0))
       path.components = cv
 
-      #expect(path.description == "/.resolve/usr/bin")
+      expectEqual(path.description, "/.resolve/usr/bin")
 
       // Reparse: /.resolve/usr/ is the anchor (flag value = "usr")
       let newAnchor = path.anchor?.description
       let newComps = path.components.map(\.description)
-      #expect(newAnchor == "/.resolve/usr/")
-      #expect(newComps == ["bin"])
+      expectEqual(newAnchor, "/.resolve/usr/")
+      expectEqual(newComps, ["bin"])
     }
   }
 
@@ -1126,12 +1120,12 @@ extension AllTests.ComponentViewTests {
       cv.insert(".vol", at: cv.idx(0))
       path.components = cv
 
-      #expect(path.description == "/.vol/1234/5678/file")
+      expectEqual(path.description, "/.vol/1234/5678/file")
 
       let newAnchor = path.anchor?.description
       let newComps = path.components.map(\.description)
-      #expect(newAnchor == "/.vol/1234/5678")
-      #expect(newComps == ["file"])
+      expectEqual(newAnchor, "/.vol/1234/5678")
+      expectEqual(newComps, ["file"])
     }
   }
 
@@ -1141,19 +1135,19 @@ extension AllTests.ComponentViewTests {
     // /prefix/.nofollow/foo -> remove "prefix" -> /.nofollow/foo
     withPlatform(.darwin) {
       var path = FilePath("/prefix/.nofollow/foo")
-      #expect(path.anchor?.description == "/")
-      #expect(path.components.map(\.description) == ["prefix", ".nofollow", "foo"])
+      expectEqual(path.anchor?.description, "/")
+      expectEqual(path.components.map(\.description), ["prefix", ".nofollow", "foo"])
 
       var cv = path.components
       cv.removeFirst()
       path.components = cv
 
-      #expect(path.description == "/.nofollow/foo")
+      expectEqual(path.description, "/.nofollow/foo")
 
       let newAnchor = path.anchor?.description
       let newComps = path.components.map(\.description)
-      #expect(newAnchor == "/.nofollow/")
-      #expect(newComps == ["foo"])
+      expectEqual(newAnchor, "/.nofollow/")
+      expectEqual(newComps, ["foo"])
     }
   }
 
@@ -1163,18 +1157,18 @@ extension AllTests.ComponentViewTests {
     // /old/1234/5678 -> replace "old" with ".vol" -> /.vol/1234/5678
     withPlatform(.darwin) {
       var path = FilePath("/old/1234/5678")
-      #expect(path.components.count == 3)
+      expectEqual(path.components.count, 3)
 
       var cv = path.components
       cv.replaceSubrange(cv.range(0..<1), with: [".vol" as FilePath.Component])
       path.components = cv
 
-      #expect(path.description == "/.vol/1234/5678")
+      expectEqual(path.description, "/.vol/1234/5678")
 
       let newAnchor = path.anchor?.description
       let newComps = path.components.map(\.description)
-      #expect(newAnchor == "/.vol/1234/5678")
-      #expect(newComps == [])
+      expectEqual(newAnchor, "/.vol/1234/5678")
+      expectEqual(newComps, [])
     }
   }
 
@@ -1188,9 +1182,9 @@ extension AllTests.ComponentViewTests {
       path.components = cv
 
       // No root, so .nofollow is just a regular component
-      #expect(path.anchor == nil)
-      #expect(path.components.map(\.description) == [".nofollow", "a", "b"])
-      #expect(path.description == ".nofollow/a/b")
+      expectNil(path.anchor)
+      expectEqual(path.components.map(\.description), [".nofollow", "a", "b"])
+      expectEqual(path.description, ".nofollow/a/b")
     }
   }
 
@@ -1204,8 +1198,8 @@ extension AllTests.ComponentViewTests {
       path.components = cv
 
       // .nofollow at end doesn't affect the anchor
-      #expect(path.anchor?.description == "/")
-      #expect(path.components.map(\.description) == ["usr", "bin", ".nofollow"])
+      expectEqual(path.anchor?.description, "/")
+      expectEqual(path.components.map(\.description), ["usr", "bin", ".nofollow"])
     }
   }
 
@@ -1217,19 +1211,19 @@ extension AllTests.ComponentViewTests {
     // a path whose tail matches the /..namedfork/rsrc suffix pattern.
     withPlatform(.darwin) {
       var path = FilePath("/file/..namedfork")
-      #expect(!path.isResourceFork)
+      expectFalse(path.isResourceFork)
 
       var cv = path.components
       cv.append("rsrc")
       path.components = cv
 
-      #expect(path.description == "/file/..namedfork/rsrc")
+      expectEqual(path.description, "/file/..namedfork/rsrc")
 
       // Reparse sees the resource fork suffix
-      #expect(path.isResourceFork)
+      expectTrue(path.isResourceFork)
       // The components no longer include ..namedfork and rsrc
       let newComps = path.components.map(\.description)
-      #expect(newComps == ["file"])
+      expectEqual(newComps, ["file"])
     }
   }
 
@@ -1238,8 +1232,8 @@ extension AllTests.ComponentViewTests {
     // Inserting between "..namedfork" and "rsrc" breaks the suffix pattern
     withPlatform(.darwin) {
       var path = FilePath("/file/..namedfork/rsrc")
-      #expect(path.isResourceFork)
-      #expect(path.components.map(\.description) == ["file"])
+      expectTrue(path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["file"])
 
       var cv = path.components
       cv.append("oops")
@@ -1249,8 +1243,8 @@ extension AllTests.ComponentViewTests {
       // but reconstruction from decomposed form doesn't auto-add the suffix.
       // This case is tricky: the original decomposition stripped the suffix,
       // so we only have ["file"] + the new component, no resource fork.
-      #expect(path.components.map(\.description) == ["file", "oops"])
-      #expect(!path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["file", "oops"])
+      expectFalse(path.isResourceFork)
     }
   }
 
@@ -1260,8 +1254,8 @@ extension AllTests.ComponentViewTests {
     // of trailing content. Removing "extra" exposes the suffix.
     withPlatform(.darwin) {
       var path = FilePath("/dir/file/..namedfork/rsrc/extra")
-      #expect(!path.isResourceFork)
-      #expect(path.components.map(\.description) == [
+      expectFalse(path.isResourceFork)
+      expectEqual(path.components.map(\.description), [
         "dir", "file", "..namedfork", "rsrc", "extra",
       ])
 
@@ -1269,12 +1263,12 @@ extension AllTests.ComponentViewTests {
       cv.removeLast()
       path.components = cv
 
-      #expect(path.description == "/dir/file/..namedfork/rsrc")
+      expectEqual(path.description, "/dir/file/..namedfork/rsrc")
 
       // Reparse now sees the resource fork suffix
-      #expect(path.isResourceFork)
+      expectTrue(path.isResourceFork)
       let newComps = path.components.map(\.description)
-      #expect(newComps == ["dir", "file"])
+      expectEqual(newComps, ["dir", "file"])
     }
   }
 
@@ -1283,16 +1277,16 @@ extension AllTests.ComponentViewTests {
     // Replace last component with "rsrc" when penultimate is "..namedfork"
     withPlatform(.darwin) {
       var path = FilePath("/data/..namedfork/icon")
-      #expect(!path.isResourceFork)
+      expectFalse(path.isResourceFork)
 
       var cv = path.components
       cv.replaceSubrange(cv.index(before: cv.endIndex) ..< cv.endIndex,
                          with: ["rsrc" as FilePath.Component])
       path.components = cv
 
-      #expect(path.description == "/data/..namedfork/rsrc")
-      #expect(path.isResourceFork)
-      #expect(path.components.map(\.description) == ["data"])
+      expectEqual(path.description, "/data/..namedfork/rsrc")
+      expectTrue(path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["data"])
     }
   }
 
@@ -1305,9 +1299,9 @@ extension AllTests.ComponentViewTests {
       cv.append("rsrc")
       path.components = cv
 
-      #expect(path.description == "file/..namedfork/rsrc")
-      #expect(path.isResourceFork)
-      #expect(path.components.map(\.description) == ["file"])
+      expectEqual(path.description, "file/..namedfork/rsrc")
+      expectTrue(path.isResourceFork)
+      expectEqual(path.components.map(\.description), ["file"])
     }
   }
 
@@ -1319,17 +1313,17 @@ extension AllTests.ComponentViewTests {
     // The trailing separator now belongs to the UNC anchor.
     withPlatform(.windows) {
       var path = FilePath(#"\\server\share\only"#)
-      #expect(path.anchor?.description == #"\\server\share"#)
-      #expect(path.components.map(\.description) == ["only"])
+      expectEqual(path.anchor?.description, #"\\server\share"#)
+      expectEqual(path.components.map(\.description), ["only"])
 
       var cv = path.components
       cv.removeLast()
       path.components = cv
 
       // With no components, the anchor stands alone
-      #expect(path.anchor?.description == #"\\server\share"#)
-      #expect(path.components.isEmpty)
-      #expect(path.hasTrailingSeparator)
+      expectEqual(path.anchor?.description, #"\\server\share"#)
+      expectTrue(path.components.isEmpty)
+      expectTrue(path.hasTrailingSeparator)
     }
   }
 
@@ -1343,10 +1337,10 @@ extension AllTests.ComponentViewTests {
       cv.append(".")
       path.components = cv
 
-      #expect(path.description == #"\\?\C:\dir\."#)
+      expectEqual(path.description, #"\\?\C:\dir\."#)
       // In verbatim context the "." is a regular component name
       let lastComp = path.components.last!
-      #expect(lastComp.kind == .regular)
+      expectEqual(lastComp.kind, .regular)
     }
   }
 
@@ -1359,9 +1353,9 @@ extension AllTests.ComponentViewTests {
       cv.append("..")
       path.components = cv
 
-      #expect(path.description == #"\\?\C:\dir\.."#)
+      expectEqual(path.description, #"\\?\C:\dir\.."#)
       let lastComp = path.components.last!
-      #expect(lastComp.kind == .regular)
+      expectEqual(lastComp.kind, .regular)
     }
   }
 
@@ -1374,8 +1368,8 @@ extension AllTests.ComponentViewTests {
       cv.append("extra")
       path.components = cv
 
-      #expect(path.description == #"\\.\COM1\extra"#)
-      #expect(path.components.map(\.description) == ["extra"])
+      expectEqual(path.description, #"\\.\COM1\extra"#)
+      expectEqual(path.components.map(\.description), ["extra"])
     }
   }
 }

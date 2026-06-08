@@ -109,13 +109,13 @@ public struct FilePath: Sendable {
       suffixStart = s.endIndex
     }
 
-    // Reassemble: anchor + gap + dot-normalized relative + suffix —
-    // appending the relative portion directly into `result` rather than
-    // through a temporary buffer.
-    var result = _SystemString()
-    result.append(contentsOf: s[s.startIndex..<rootEnd])      // anchor
-    result.append(contentsOf: s[rootEnd..<relBegin])           // gap
+    // TODO(post-PR): Single pass instead of both `s` and `result` copies.
 
+    // Reassemble: anchor + gap + dot-normalized relative + suffix —
+    // appending the relative portion into `result`
+    var result = _SystemString()
+    result.append(contentsOf: s[..<relBegin])
+ 
     // If the anchor doesn't already end in `/` and there is no gap
     // separator, we may need to insert one between anchor and relative.
     // Insert speculatively; roll back if the relative dot-normalizes to

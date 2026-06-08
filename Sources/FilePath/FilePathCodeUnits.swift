@@ -112,6 +112,8 @@ extension FilePath {
     self.init(_normalizing: str)
   }
 
+  // TODO: Add the init
+
   // NOTE: The proposal specifies an OutputSpan-based initializer:
   //
   //   public init<E: Error>(
@@ -147,6 +149,7 @@ extension FilePath.Component {
       chars.append(c)
     }
     self.init(_validating: _SystemString(chars))
+    // TODO(post-PR): these inits can be cleaned up
   }
 }
 

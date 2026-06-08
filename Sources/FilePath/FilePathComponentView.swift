@@ -44,6 +44,9 @@ extension FilePath {
       }
       self._suffixEnd = _path._storage.endIndex
 
+      // TODO(post-PR): double check why the trailing slash should be included but not
+      // resource fork
+
       _internalInvariant(_originalStart <= _relStart)
       _internalInvariant(_relStart <= _relEnd)
       _internalInvariant(_relEnd <= _suffixEnd)

@@ -32,14 +32,14 @@ struct SystemStringTests {
     _ sourceLocation: SourceLocation = #_sourceLocation
   ) -> [FilePath.CodeUnit] {
     let storage = s.nullTerminatedStorage
-    #expect(!storage.isEmpty, "storage must be non-empty",
+    expectFalse(storage.isEmpty, "storage must be non-empty",
             sourceLocation: sourceLocation)
-    #expect(storage.last == ._null, "last byte must be null",
+    expectEqual(storage.last, ._null, "last byte must be null",
             sourceLocation: sourceLocation)
-    #expect(!storage.dropLast().contains(._null),
+    expectFalse(storage.dropLast().contains(._null),
             "no embedded nulls before the terminator",
             sourceLocation: sourceLocation)
-    #expect(s.count == storage.count - 1,
+    expectEqual(s.count, storage.count - 1,
             "user-visible length excludes terminator",
             sourceLocation: sourceLocation)
     return Array(s)
@@ -54,23 +54,23 @@ struct SystemStringTests {
   @Test
   func defaultInitIsEmptyButTerminated() {
     let s = _SystemString()
-    #expect(_checkAndExtract(s) == [])
-    #expect(s.isEmpty)
-    #expect(s.count == 0)
+    expectEqual(_checkAndExtract(s), [])
+    expectTrue(s.isEmpty)
+    expectEqual(s.count, 0)
   }
 
   @Test
   func initFromEmptyCollection() {
     let s = _SystemString([] as [FilePath.CodeUnit])
-    #expect(_checkAndExtract(s) == [])
+    expectEqual(_checkAndExtract(s), [])
   }
 
   @Test
   func initFromBytesAppendsNull() {
     let s = _make([0x41, 0x42, 0x43])
     let bytes = _checkAndExtract(s)
-    #expect(bytes.map(Int.init) == [0x41, 0x42, 0x43])
-    #expect(s.nullTerminatedStorage.count == 4)
+    expectEqual(bytes.map(Int.init), [0x41, 0x42, 0x43])
+    expectEqual(s.nullTerminatedStorage.count, 4)
   }
 
   @Test
@@ -78,8 +78,8 @@ struct SystemStringTests {
     let s = _SystemString(nullTerminatedStorage:
       [FilePath.CodeUnit(0x41), FilePath.CodeUnit(0x42), ._null])
     let bytes = _checkAndExtract(s)
-    #expect(bytes.map(Int.init) == [0x41, 0x42])
-    #expect(s.nullTerminatedStorage.count == 3)
+    expectEqual(bytes.map(Int.init), [0x41, 0x42])
+    expectEqual(s.nullTerminatedStorage.count, 3)
   }
 
   // MARK: - Indexing boundaries
@@ -87,17 +87,17 @@ struct SystemStringTests {
   @Test
   func endIndexIsBeforeNullByte() {
     let s = _make([0x41, 0x42, 0x43])
-    #expect(s.endIndex == 3)
-    #expect(s.nullTerminatedStorage[s.endIndex] == ._null)
+    expectEqual(s.endIndex, 3)
+    expectEqual(s.nullTerminatedStorage[s.endIndex], ._null)
     // Iteration stops before the null
-    #expect(Array(s).count == 3)
+    expectEqual(Array(s).count, 3)
   }
 
   @Test
   func emptyStringEndIndexEqualsStartIndex() {
     let s = _SystemString()
-    #expect(s.startIndex == s.endIndex)
-    #expect(s.nullTerminatedStorage[s.endIndex] == ._null)
+    expectEqual(s.startIndex, s.endIndex)
+    expectEqual(s.nullTerminatedStorage[s.endIndex], ._null)
   }
 
   // MARK: - replaceSubrange
@@ -106,7 +106,7 @@ struct SystemStringTests {
   func replaceSubrangeMiddleSameSize() {
     var s = _make([0x41, 0x42, 0x43, 0x44])
     s.replaceSubrange(1..<3, with: [FilePath.CodeUnit(0x58), FilePath.CodeUnit(0x59)])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x58, 0x59, 0x44])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x58, 0x59, 0x44])
   }
 
   @Test
@@ -115,21 +115,21 @@ struct SystemStringTests {
     s.replaceSubrange(1..<2, with: [
       FilePath.CodeUnit(0x58), FilePath.CodeUnit(0x59), FilePath.CodeUnit(0x5A),
     ])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x58, 0x59, 0x5A, 0x43])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x58, 0x59, 0x5A, 0x43])
   }
 
   @Test
   func replaceSubrangeMiddleShrinks() {
     var s = _make([0x41, 0x42, 0x43, 0x44, 0x45])
     s.replaceSubrange(1..<4, with: [FilePath.CodeUnit(0x58)])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x58, 0x45])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x58, 0x45])
   }
 
   @Test
   func replaceSubrangeAtFront() {
     var s = _make([0x41, 0x42, 0x43])
     s.replaceSubrange(0..<1, with: [FilePath.CodeUnit(0x58), FilePath.CodeUnit(0x59)])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x58, 0x59, 0x42, 0x43])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x58, 0x59, 0x42, 0x43])
   }
 
   @Test
@@ -137,7 +137,7 @@ struct SystemStringTests {
     // Replacing range at endIndex is a pure insertion; null stays.
     var s = _make([0x41, 0x42])
     s.replaceSubrange(2..<2, with: [FilePath.CodeUnit(0x58)])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42, 0x58])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42, 0x58])
   }
 
   @Test
@@ -145,14 +145,14 @@ struct SystemStringTests {
     // Range running to endIndex must NOT consume the null byte.
     var s = _make([0x41, 0x42, 0x43])
     s.replaceSubrange(1..<3, with: [FilePath.CodeUnit(0x58)])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x58])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x58])
   }
 
   @Test
   func replaceSubrangeWholeStringWithEmpty() {
     var s = _make([0x41, 0x42, 0x43])
     s.replaceSubrange(0..<3, with: [] as [FilePath.CodeUnit])
-    #expect(_checkAndExtract(s) == [])
+    expectEqual(_checkAndExtract(s), [])
   }
 
   @Test
@@ -161,14 +161,14 @@ struct SystemStringTests {
     s.replaceSubrange(0..<3, with: [
       FilePath.CodeUnit(0x58), FilePath.CodeUnit(0x59),
     ])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x58, 0x59])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x58, 0x59])
   }
 
   @Test
   func replaceSubrangeEmptyRangeWithEmptyIsNoOp() {
     var s = _make([0x41, 0x42])
     s.replaceSubrange(1..<1, with: [] as [FilePath.CodeUnit])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42])
   }
 
   @Test
@@ -177,7 +177,7 @@ struct SystemStringTests {
     s.replaceSubrange(0..<0, with: [
       FilePath.CodeUnit(0x41), FilePath.CodeUnit(0x42),
     ])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42])
   }
 
   // MARK: - append (default RRC impl)
@@ -186,14 +186,14 @@ struct SystemStringTests {
   func appendSingleByte() {
     var s = _make([0x41])
     s.append(FilePath.CodeUnit(0x42))
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42])
   }
 
   @Test
   func appendToEmpty() {
     var s = _SystemString()
     s.append(FilePath.CodeUnit(0x41))
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41])
   }
 
   @Test
@@ -202,14 +202,14 @@ struct SystemStringTests {
     s.append(contentsOf: [
       FilePath.CodeUnit(0x42), FilePath.CodeUnit(0x43),
     ])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42, 0x43])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42, 0x43])
   }
 
   @Test
   func appendContentsOfEmpty() {
     var s = _make([0x41])
     s.append(contentsOf: [] as [FilePath.CodeUnit])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41])
   }
 
   // MARK: - insert
@@ -218,21 +218,21 @@ struct SystemStringTests {
   func insertAtStart() {
     var s = _make([0x42, 0x43])
     s.insert(FilePath.CodeUnit(0x41), at: 0)
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42, 0x43])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42, 0x43])
   }
 
   @Test
   func insertAtMiddle() {
     var s = _make([0x41, 0x43])
     s.insert(FilePath.CodeUnit(0x42), at: 1)
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42, 0x43])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42, 0x43])
   }
 
   @Test
   func insertAtEndIndex() {
     var s = _make([0x41, 0x42])
     s.insert(FilePath.CodeUnit(0x43), at: 2)
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42, 0x43])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42, 0x43])
   }
 
   @Test
@@ -241,7 +241,7 @@ struct SystemStringTests {
     s.insert(contentsOf: [
       FilePath.CodeUnit(0x42), FilePath.CodeUnit(0x43),
     ], at: 1)
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42, 0x43, 0x44])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42, 0x43, 0x44])
   }
 
   @Test
@@ -250,7 +250,7 @@ struct SystemStringTests {
     s.insert(contentsOf: [
       FilePath.CodeUnit(0x43), FilePath.CodeUnit(0x44),
     ], at: 2)
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42, 0x43, 0x44])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42, 0x43, 0x44])
   }
 
   // MARK: - remove
@@ -259,44 +259,44 @@ struct SystemStringTests {
   func removeFirst() {
     var s = _make([0x41, 0x42, 0x43])
     let removed = s.removeFirst()
-    #expect(removed == FilePath.CodeUnit(0x41))
-    #expect(_checkAndExtract(s).map(Int.init) == [0x42, 0x43])
+    expectEqual(removed, FilePath.CodeUnit(0x41))
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x42, 0x43])
   }
 
   @Test
   func removeLast() {
     var s = _make([0x41, 0x42, 0x43])
     let removed = s.removeLast()
-    #expect(removed == FilePath.CodeUnit(0x43))
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42])
+    expectEqual(removed, FilePath.CodeUnit(0x43))
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42])
   }
 
   @Test
   func removeSubrangeMiddle() {
     var s = _make([0x41, 0x42, 0x43, 0x44])
     s.removeSubrange(1..<3)
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x44])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x44])
   }
 
   @Test
   func removeSubrangeToEnd() {
     var s = _make([0x41, 0x42, 0x43])
     s.removeSubrange(1..<3)
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41])
   }
 
   @Test
   func removeAll() {
     var s = _make([0x41, 0x42, 0x43])
     s.removeAll()
-    #expect(_checkAndExtract(s) == [])
+    expectEqual(_checkAndExtract(s), [])
   }
 
   @Test
   func removeAllOnEmpty() {
     var s = _SystemString()
     s.removeAll()
-    #expect(_checkAndExtract(s) == [])
+    expectEqual(_checkAndExtract(s), [])
   }
 
   // MARK: - Subscript
@@ -304,16 +304,16 @@ struct SystemStringTests {
   @Test
   func subscriptReadAtIndices() {
     let s = _make([0x41, 0x42, 0x43])
-    #expect(s[0] == FilePath.CodeUnit(0x41))
-    #expect(s[1] == FilePath.CodeUnit(0x42))
-    #expect(s[2] == FilePath.CodeUnit(0x43))
+    expectEqual(s[0], FilePath.CodeUnit(0x41))
+    expectEqual(s[1], FilePath.CodeUnit(0x42))
+    expectEqual(s[2], FilePath.CodeUnit(0x43))
   }
 
   @Test
   func subscriptSetMiddle() {
     var s = _make([0x41, 0x42, 0x43])
     s[1] = FilePath.CodeUnit(0x58)
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x58, 0x43])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x58, 0x43])
   }
 
   // MARK: - Sequenced operations (the patterns Decomposition.swift uses)
@@ -324,12 +324,12 @@ struct SystemStringTests {
     // boundary, then append the contribution. Null must stay at end.
     var s = _make([0x41, 0x42, 0x43, 0x44, 0x45])
     s.removeSubrange(2..<5)
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42])
     s.append(FilePath.CodeUnit(0x2F))  // separator-shaped byte
     s.append(contentsOf: [
       FilePath.CodeUnit(0x58), FilePath.CodeUnit(0x59),
     ])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x41, 0x42, 0x2F, 0x58, 0x59])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x41, 0x42, 0x2F, 0x58, 0x59])
   }
 
   @Test
@@ -341,9 +341,9 @@ struct SystemStringTests {
       FilePath.CodeUnit(0x58), FilePath.CodeUnit(0x59),
       FilePath.CodeUnit(0x5A),
     ])
-    #expect(_checkAndExtract(s).map(Int.init) == [0x58, 0x59, 0x5A, 0x43, 0x44])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x58, 0x59, 0x5A, 0x43, 0x44])
     s.insert(FilePath.CodeUnit(0x2F), at: 3)
-    #expect(_checkAndExtract(s).map(Int.init) == [
+    expectEqual(_checkAndExtract(s).map(Int.init), [
       0x58, 0x59, 0x5A, 0x2F, 0x43, 0x44,
     ])
   }
@@ -359,6 +359,6 @@ struct SystemStringTests {
     s.replaceSubrange(0..<s.count, with: [] as [FilePath.CodeUnit])
     s.append(contentsOf: [FilePath.CodeUnit(0x60)])
     // After all that, null still at end and only at end.
-    #expect(_checkAndExtract(s).map(Int.init) == [0x60])
+    expectEqual(_checkAndExtract(s).map(Int.init), [0x60])
   }
 }

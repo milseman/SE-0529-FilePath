@@ -137,5 +137,8 @@ extension FilePath.Component {
     let comps = path.components
     guard comps.count == 1 else { return nil }
     self = comps.first!
+
+    // TODO(post-PR): Probably have this take a FilePath or span or something instead
+    // and do it in one shot
   }
 }

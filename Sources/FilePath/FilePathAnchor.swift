@@ -173,7 +173,7 @@ extension FilePath.Anchor: ExpressibleByStringLiteral {
 private func _isIncompleteWindowsNamedAnchor(
   _ anchorBytes: Slice<_SystemString>
 ) -> Bool {
-  let bytes = Array(anchorBytes)
+  let bytes = anchorBytes
   // A named form begins with the two-backslash UNC/device/verbatim prefix.
   // One leading `\` is the bare current-drive root, and `C:` / `C:\` carry a
   // drive; none of those are a name-bearing form with the name missing.
