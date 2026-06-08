@@ -141,7 +141,9 @@ extension FilePath.ComponentView: BidirectionalCollection {
   @available(SwiftStdlib 9999, *)
   public var endIndex: Index {
     // endIndex is the end of the iterable (component) region — the start
-    // of any suffix (resource fork) or end of storage if no suffix.
+    // of any structural suffix (a trailing separator on the relative
+    // region, or a Darwin resource-fork suffix), or end of storage if
+    // there is no such suffix.
     Index(_storage: _relEnd)
   }
 
@@ -224,15 +226,11 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
 
     if newArray.isEmpty {
       // Indices point to component starts. The range [byteLower, byteUpper)
-      // includes the removed component(s) plus the separator(s) joining
-      // them to the NEXT component. We just need to handle the boundary
-      // separator correctly:
-      // - touchesEnd: no trailing separator in range (extends to _relEnd),
-      //   so remove the PRECEDING separator.
-      // - removing from start: range already includes trailing sep, just
-      //   remove as-is.
-      // - removing from middle: range already includes trailing sep that
-      //   becomes the new boundary; just remove as-is.
+      // covers the removed component(s) plus the joining separator that
+      // follows them. The exception is `touchesEnd`: there is no following
+      // component to join to, so we instead back `adjLower` over the
+      // PRECEDING separator to keep the result well-formed (no dangling
+      // sep after the last surviving component).
       var adjLower = byteLower
       let adjUpper = byteUpper
 

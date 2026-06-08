@@ -349,6 +349,53 @@ extension AllTests.ValidationTests {
     }
   }
 
+  // Per proposal line 111: a Darwin anchor may include resolve flags AND/OR
+  // a volume identifier. The combined form `[/.nofollow/ | /.resolve/N/]
+  // .vol/FSID/FILEID` is one anchor, and `Anchor.init?` accepts it iff the
+  // combined form is complete (no missing FSID/FILEID).
+  @Test
+  func anchorInitDarwinAcceptsCombinedForms() {
+    withPlatform(.darwin) {
+      // String literals dispatch to the trapping `init(stringLiteral:)`;
+      // route through let-bindings so the failable `init?(_:)` is selected.
+      let nofollowVol: String = "/.nofollow/.vol/1234/5678"
+      expectNotNil(FilePath.Anchor(nofollowVol),
+        "/.nofollow/.vol/1234/5678 is a valid combined anchor")
+      let resolveVol: String = "/.resolve/3/.vol/1234/5678"
+      expectNotNil(FilePath.Anchor(resolveVol),
+        "/.resolve/3/.vol/1234/5678 is a valid combined anchor")
+      // Combined with FILEID canonicalization (`2` -> `@`): still valid.
+      let nofollowVol2: String = "/.nofollow/.vol/1234/2"
+      expectNotNil(FilePath.Anchor(nofollowVol2),
+        "/.nofollow/.vol/1234/2 canonicalizes and is accepted")
+      // Combined with both canonicalizations.
+      let resolveOneVol2: String = "/.resolve/1/.vol/1234/2"
+      expectNotNil(FilePath.Anchor(resolveOneVol2),
+        "/.resolve/1/.vol/1234/2 canonicalizes and is accepted")
+    }
+  }
+
+  // Incomplete combined forms (missing FSID or FILEID) fall back to the
+  // leading flag as the anchor with the partial vol bytes as components.
+  // `Anchor.init?` then rejects them because components are non-empty.
+  @Test
+  func anchorInitDarwinRejectsIncompleteCombinedForms() {
+    withPlatform(.darwin) {
+      let nofollowVolEmpty: String = "/.nofollow/.vol/"
+      expectNil(FilePath.Anchor(nofollowVolEmpty),
+        "/.nofollow/.vol/ has no FSID — falls back to /.nofollow/ + [.vol]")
+      let nofollowVolNoFileid: String = "/.nofollow/.vol/1234/"
+      expectNil(FilePath.Anchor(nofollowVolNoFileid),
+        "/.nofollow/.vol/1234/ has no FILEID")
+      let resolveVolEmpty: String = "/.resolve/3/.vol/"
+      expectNil(FilePath.Anchor(resolveVolEmpty),
+        "/.resolve/3/.vol/ has no FSID")
+      let resolveVolNoFileid: String = "/.resolve/3/.vol/1234/"
+      expectNil(FilePath.Anchor(resolveVolNoFileid),
+        "/.resolve/3/.vol/1234/ has no FILEID")
+    }
+  }
+
   @Test
   func anchorInitRejectsNULWindows() {
     withPlatform(.windows) {

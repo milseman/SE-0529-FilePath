@@ -755,6 +755,137 @@ let pathTestCases: [PathTestCase] = [
             printed: #"\.vol\1234\@\foo"#, isAbsolute: false, isRooted: true)
     ),
 
+    // MARK: - Darwin combined anchors (resolve flag + volume identifier)
+    //
+    // Per proposal line 111: an anchor may include resolve flags AND/OR
+    // a volume identifier; resolve always precedes vol. The combined form
+    // `[/.nofollow/ | /.resolve/N/].vol/FSID/FILEID` is a single anchor.
+    // Both canonicalizations (`/.resolve/1/` -> `/.nofollow/`, `2` -> `@`)
+    // can fire on the same input.
+
+    // Combined nofollow + vol, no canonicalization.
+    PathTestCase(
+        input: "/.nofollow/.vol/1234/5678",
+        linux: Expected(
+            anchor: "/", components: [".nofollow", ".vol", "1234", "5678"],
+            printed: "/.nofollow/.vol/1234/5678", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.nofollow/.vol/1234/5678", components: [],
+            printed: "/.nofollow/.vol/1234/5678", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\"#, components: [".nofollow", ".vol", "1234", "5678"],
+            printed: #"\.nofollow\.vol\1234\5678"#, isAbsolute: false, isRooted: true)
+    ),
+
+    // Combined nofollow + vol with relative content.
+    PathTestCase(
+        input: "/.nofollow/.vol/1234/5678/foo",
+        linux: Expected(
+            anchor: "/", components: [".nofollow", ".vol", "1234", "5678", "foo"],
+            printed: "/.nofollow/.vol/1234/5678/foo", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.nofollow/.vol/1234/5678", components: ["foo"],
+            printed: "/.nofollow/.vol/1234/5678/foo", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\"#, components: [".nofollow", ".vol", "1234", "5678", "foo"],
+            printed: #"\.nofollow\.vol\1234\5678\foo"#, isAbsolute: false, isRooted: true)
+    ),
+
+    // Combined nofollow + vol with FILEID canonicalization (`2` -> `@`).
+    PathTestCase(
+        input: "/.nofollow/.vol/1234/2",
+        linux: Expected(
+            anchor: "/", components: [".nofollow", ".vol", "1234", "2"],
+            printed: "/.nofollow/.vol/1234/2", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.nofollow/.vol/1234/@", components: [],
+            printed: "/.nofollow/.vol/1234/@", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\"#, components: [".nofollow", ".vol", "1234", "2"],
+            printed: #"\.nofollow\.vol\1234\2"#, isAbsolute: false, isRooted: true)
+    ),
+
+    // Combined nofollow + vol, FILEID canonicalization, with relative + trailing.
+    PathTestCase(
+        input: "/.nofollow/.vol/1234/2/foo/",
+        linux: Expected(
+            anchor: "/", components: [".nofollow", ".vol", "1234", "2", "foo"],
+            hasTrailingSeparator: true,
+            printed: "/.nofollow/.vol/1234/2/foo/", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.nofollow/.vol/1234/@", components: ["foo"],
+            hasTrailingSeparator: true,
+            printed: "/.nofollow/.vol/1234/@/foo/", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\"#, components: [".nofollow", ".vol", "1234", "2", "foo"],
+            hasTrailingSeparator: true,
+            printed: #"\.nofollow\.vol\1234\2\foo\"#, isAbsolute: false, isRooted: true)
+    ),
+
+    // Combined resolve/N + vol (non-canonicalizing flag value).
+    PathTestCase(
+        input: "/.resolve/3/.vol/1234/5678",
+        linux: Expected(
+            anchor: "/", components: [".resolve", "3", ".vol", "1234", "5678"],
+            printed: "/.resolve/3/.vol/1234/5678", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.resolve/3/.vol/1234/5678", components: [],
+            printed: "/.resolve/3/.vol/1234/5678", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\"#, components: [".resolve", "3", ".vol", "1234", "5678"],
+            printed: #"\.resolve\3\.vol\1234\5678"#, isAbsolute: false, isRooted: true)
+    ),
+
+    // Combined resolve/3 + vol with FILEID canon — only the FILEID rule
+    // fires; `.resolve/3/` is preserved as written.
+    PathTestCase(
+        input: "/.resolve/3/.vol/1234/2/",
+        linux: Expected(
+            anchor: "/", components: [".resolve", "3", ".vol", "1234", "2"],
+            hasTrailingSeparator: true,
+            printed: "/.resolve/3/.vol/1234/2/", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.resolve/3/.vol/1234/@", components: [],
+            hasTrailingSeparator: true,
+            printed: "/.resolve/3/.vol/1234/@/", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\"#, components: [".resolve", "3", ".vol", "1234", "2"],
+            hasTrailingSeparator: true,
+            printed: #"\.resolve\3\.vol\1234\2\"#, isAbsolute: false, isRooted: true)
+    ),
+
+    // Combined resolve/1 + vol — BOTH canonicalizations fire:
+    // `/.resolve/1/` -> `/.nofollow/` AND FILEID `2` -> `@`.
+    PathTestCase(
+        input: "/.resolve/1/.vol/1234/2/",
+        linux: Expected(
+            anchor: "/", components: [".resolve", "1", ".vol", "1234", "2"],
+            hasTrailingSeparator: true,
+            printed: "/.resolve/1/.vol/1234/2/", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.nofollow/.vol/1234/@", components: [],
+            hasTrailingSeparator: true,
+            printed: "/.nofollow/.vol/1234/@/", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\"#, components: [".resolve", "1", ".vol", "1234", "2"],
+            hasTrailingSeparator: true,
+            printed: #"\.resolve\1\.vol\1234\2\"#, isAbsolute: false, isRooted: true)
+    ),
+
+    // Combined resolve/1 + vol with relative content — both canons + relative.
+    PathTestCase(
+        input: "/.resolve/1/.vol/1234/2/foo/bar",
+        linux: Expected(
+            anchor: "/", components: [".resolve", "1", ".vol", "1234", "2", "foo", "bar"],
+            printed: "/.resolve/1/.vol/1234/2/foo/bar", isAbsolute: true),
+        darwin: Expected(
+            anchor: "/.nofollow/.vol/1234/@", components: ["foo", "bar"],
+            printed: "/.nofollow/.vol/1234/@/foo/bar", isAbsolute: true),
+        windows: Expected(
+            anchor: #"\"#, components: [".resolve", "1", ".vol", "1234", "2", "foo", "bar"],
+            printed: #"\.resolve\1\.vol\1234\2\foo\bar"#, isAbsolute: false, isRooted: true)
+    ),
+
     // MARK: - Darwin resource forks (linux/darwin differ)
 
     PathTestCase(

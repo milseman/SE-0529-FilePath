@@ -134,9 +134,9 @@ extension _SystemString {
 
 @available(SwiftStdlib 9999, *)
 extension _SystemString {
-  // Normalize separators: coalesce repeated seps.
-  // On Windows, convert / to \ and prenormalize roots.
-  // Does NOT remove trailing separators (new behavior).
+  // Coalesce repeated separators in place. On Windows, also convert `/`
+  // to `\` (verbatim-aware) and prenormalize roots before coalescing.
+  // Trailing separators are preserved.
   internal mutating func _normalizeSeparators() {
     guard !isEmpty else { return }
     var (writeIdx, readIdx) = (startIndex, startIndex)

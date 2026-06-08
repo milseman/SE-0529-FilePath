@@ -183,7 +183,11 @@ extension FilePath {
   }
 }
 
-// MARK: - Resource fork (Darwin-only, simulated for all platforms in review)
+// MARK: - Resource fork (Darwin)
+//
+// Implemented only on Darwin builds; the getter returns `false` on other
+// platforms and the setter is a no-op (the helpers in FilePathDarwin.swift
+// guard on `_isDarwin`, which folds to `false` at compile time elsewhere).
 
 @available(SwiftStdlib 9999, *)
 extension FilePath {

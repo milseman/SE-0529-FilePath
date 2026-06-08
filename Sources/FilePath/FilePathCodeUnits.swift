@@ -162,18 +162,10 @@ extension FilePath.ComponentView {
   /// components portion of the path.
   @available(SwiftStdlib 9999, *)
   public var codeUnits: Span<FilePath.CodeUnit> {
-    // The component view spans [_relStart, _relEnd) in the path's storage.
-    // Strip a trailing separator (it is suffix, not part of components) —
-    // same boundary logic as the former buffer-based stand-in.
-    var end = _relEnd
-    if end > _relStart
-       && _isSeparator(_path._storage[_path._storage.index(before: end)]) {
-      let (_, relBegin) = _path._storage._parseRoot()
-      let sepIdx = _path._storage.index(before: end)
-      if sepIdx >= relBegin {
-        end = sepIdx
-      }
-    }
-    return _path._storage._nullTerminatedSpan.extracting(_relStart..<end)
+    // The component view spans `[_relStart, _relEnd)`. By construction
+    // `_relEnd` excludes any structural suffix (trailing separator on the
+    // relative region, or a Darwin resource-fork suffix), so this range
+    // is exactly the components-region bytes.
+    _path._storage._nullTerminatedSpan.extracting(_relStart..<_relEnd)
   }
 }

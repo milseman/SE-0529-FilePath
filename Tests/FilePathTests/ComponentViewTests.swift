@@ -1130,6 +1130,55 @@ extension AllTests.ComponentViewTests {
   }
 
   @Test
+  func darwinAppendsFormCombinedAnchor() {
+    // Starting from a `/.nofollow/` anchor, appending `.vol`, FSID, and
+    // FILEID one at a time. The first two appends leave them as plain
+    // components (vol parser fails — incomplete). The third append
+    // completes a parsable `.vol/FSID/FILEID` and triggers absorption:
+    // the combined anchor `/.nofollow/.vol/N/M` forms and components
+    // collapse to empty. (Per proposal line 111: a Darwin anchor may
+    // include resolve flags AND/OR a volume identifier.)
+    withPlatform(.darwin) {
+      var path = FilePath("/.nofollow/")
+      expectEqual(path.anchor?.description, "/.nofollow/")
+      expectEqual(path.components.map(\.description), [])
+
+      path.components.append(".vol")
+      expectEqual(path.anchor?.description, "/.nofollow/")
+      expectEqual(path.components.map(\.description), [".vol"])
+
+      path.components.append("1234")
+      expectEqual(path.anchor?.description, "/.nofollow/")
+      expectEqual(path.components.map(\.description), [".vol", "1234"])
+
+      path.components.append("5678")
+      // Absorption: components fold into the combined anchor.
+      expectEqual(path.anchor?.description, "/.nofollow/.vol/1234/5678")
+      expectEqual(path.components.map(\.description), [])
+    }
+  }
+
+  @Test
+  func darwinRemoveLastFromCombinedAnchorStaysWithLeading() {
+    // Removing the only component of a combined-anchor path leaves the
+    // anchor + gap separator. Same shape as UNC `\\server\share\only` ->
+    // `\\server\share\`: the gap separator becomes the trailing separator,
+    // anchor stays intact, components empty.
+    withPlatform(.darwin) {
+      var path = FilePath("/.nofollow/.vol/1234/5678/foo")
+      expectEqual(path.anchor?.description, "/.nofollow/.vol/1234/5678")
+      expectEqual(path.components.map(\.description), ["foo"])
+
+      path.components.removeLast()
+
+      expectEqual(path.description, "/.nofollow/.vol/1234/5678/")
+      expectEqual(path.anchor?.description, "/.nofollow/.vol/1234/5678")
+      expectEqual(path.components.map(\.description), [])
+      expectTrue(path.hasTrailingSeparator)
+    }
+  }
+
+  @Test
   func darwinRemoveComponentExposesAnchor() {
     // Reverse direction: remove first component to reveal anchor structure.
     // /prefix/.nofollow/foo -> remove "prefix" -> /.nofollow/foo

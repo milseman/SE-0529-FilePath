@@ -101,6 +101,19 @@ extension AllTests.EqualityTests {
       // /.vol/NNNN/2/ canonicalizes to /.vol/NNNN/@/ (inode 2 is the root @).
       expectEqual(FilePath("/.vol/1234/2/x"), FilePath("/.vol/1234/@/x"),
         "/.vol/1234/2/x == /.vol/1234/@/x")
+      // Combined anchor (proposal line 111): both canonicalizations fire on
+      // the same input — `/.resolve/1/.vol/N/2/` and `/.nofollow/.vol/N/@/`
+      // are two spellings of the same anchor.
+      expectEqual(
+        FilePath("/.resolve/1/.vol/1234/2/x"),
+        FilePath("/.nofollow/.vol/1234/@/x"),
+        "/.resolve/1/.vol/1234/2/x == /.nofollow/.vol/1234/@/x")
+      // Combined anchor with only the FILEID rule firing (resolve/3 is not
+      // canonicalizing).
+      expectEqual(
+        FilePath("/.resolve/3/.vol/1234/2/x"),
+        FilePath("/.resolve/3/.vol/1234/@/x"),
+        "/.resolve/3/.vol/1234/2/x == /.resolve/3/.vol/1234/@/x")
     }
   }
 

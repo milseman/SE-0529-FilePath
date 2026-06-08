@@ -35,22 +35,45 @@ extension _SystemString {
     // Must start with /.
     guard self[afterSlash] == ._dot else { return nil }
 
-    // Check for /.nofollow/
+    // Per the proposal, an anchor may include resolve flags AND/OR a
+    // volume identifier; resolve always precedes vol. So a leading
+    // /.nofollow/ or /.resolve/N/ may extend with .vol/FSID/FILEID into
+    // a single combined anchor.
     if _matchesNofollow(from: afterSlash) {
-      return _parseNofollow(from: afterSlash)
+      guard let leading = _parseNofollow(from: afterSlash) else { return nil }
+      return _maybeChainVol(after: leading)
     }
-
-    // Check for /.resolve/N/
     if _matchesResolve(from: afterSlash) {
-      return _parseResolve(from: afterSlash)
+      guard let leading = _parseResolve(from: afterSlash) else { return nil }
+      return _maybeChainVol(after: leading)
     }
 
-    // Check for /.vol/FSID/FILEID
+    // Bare /.vol/FSID/FILEID
     if _matchesVol(from: afterSlash) {
       return _parseVol(from: afterSlash)
     }
 
     return nil
+  }
+
+  // If `.vol/FSID/FILEID` follows the leading flag's relativeBegin,
+  // extend the anchor to include it. Otherwise return the leading
+  // anchor unchanged.
+  private func _maybeChainVol(
+    after leading: _ParsedDarwinAnchor
+  ) -> _ParsedDarwinAnchor {
+    let next = leading.relativeBegin
+    guard next < endIndex,
+          self[next] == ._dot,
+          _matchesVol(from: next),
+          let chained = _parseVol(from: next)
+    else {
+      return leading
+    }
+    // Chaining must strictly extend the leading anchor.
+    _internalInvariant(chained.anchorEnd >= leading.relativeBegin)
+    _internalInvariant(chained.relativeBegin >= chained.anchorEnd)
+    return chained
   }
 
   // TODO(post-PR): see if we can avoid extra storage for below
@@ -166,23 +189,39 @@ extension _SystemString {
   private static let _volAnchor: [FilePath.CodeUnit] =
     "/.vol/".unicodeScalars.map { FilePath.CodeUnit(_ascii: $0) }
 
-  // /.resolve/1/ -> /.nofollow/
-  // /.vol/NNNN/2/ -> /.vol/NNNN/@/
+  // /.resolve/1/        -> /.nofollow/
+  // /.vol/NNNN/2/       -> /.vol/NNNN/@/
+  // /.nofollow/.vol/NNNN/2/   -> /.nofollow/.vol/NNNN/@/
+  // /.resolve/1/.vol/NNNN/2/  -> /.nofollow/.vol/NNNN/@/
+  // /.resolve/3/.vol/NNNN/2/  -> /.resolve/3/.vol/NNNN/@/
+  //
+  // Both replacements are independent and may both fire on a single
+  // combined anchor, so we don't return between them.
   internal mutating func _canonicalizeDarwinAnchor() {
     guard _isDarwin else { return }
 
-    // Check for /.resolve/1/ -> /.nofollow/
+    // /.resolve/1/ (12 bytes) -> /.nofollow/ (11 bytes). Storage shrinks by
+    // one byte; any trailing .vol portion shifts accordingly. Step 2 below
+    // re-finds positions on the post-replacement storage, so the shift is
+    // not load-bearing for callers.
     if self.starts(with: Self._resolveOneAnchor) {
       let resolveEnd = self.index(
         startIndex, offsetBy: Self._resolveOneAnchor.count)
       self.replaceSubrange(startIndex..<resolveEnd, with: Self._nofollowAnchor)
-      return
+      _internalInvariant(self.starts(with: Self._nofollowAnchor))
     }
 
-    // Check for /.vol/NNNN/2 -> /.vol/NNNN/@
-    guard self.starts(with: Self._volAnchor) else { return }
+    // .vol/FSID/FILEID -> .vol/FSID/@. The vol portion may be at the
+    // start of storage (bare) or right after a leading nofollow/resolve
+    // flag (combined anchor).
+    guard let volDot = _findAnchorVolDotPosition() else { return }
+    _internalInvariant(self[volDot] == ._dot)
+    _internalInvariant(_matchesVol(from: volDot))
 
-    let fsidStart = self.index(startIndex, offsetBy: Self._volAnchor.count)
+    let volEnd = self.index(volDot, offsetBy: Self._volToken.count)
+    guard volEnd < endIndex, self[volEnd] == ._slash else { return }
+
+    let fsidStart = self.index(after: volEnd)
     guard fsidStart < endIndex else { return }
     guard let fsidEnd = self[fsidStart...].firstIndex(of: ._slash) else {
       return
@@ -192,14 +231,57 @@ extension _SystemString {
     let fileidStart = self.index(after: fsidEnd)
     guard fileidStart < endIndex else { return }
 
-    // Find end of fileid
     let fileidEnd = self[fileidStart...].firstIndex(of: ._slash) ?? endIndex
 
-    // Check if fileid is exactly "2"
     let fileidSlice = self[fileidStart..<fileidEnd]
-    if fileidSlice.count == 1 && fileidSlice.first == FilePath.CodeUnit(_ascii: "2") {
+    if fileidSlice.count == 1
+       && fileidSlice.first == FilePath.CodeUnit(_ascii: "2") {
       self.replaceSubrange(fileidStart..<fileidEnd, with: CollectionOfOne(._at))
     }
+  }
+
+  // Returns the index of the leading `.` of `.vol/...` within the
+  // anchor, if present. Three valid positions:
+  // - at startIndex+1, when storage starts with `/.vol/`
+  // - just past a leading `/.nofollow/`
+  // - just past a leading `/.resolve/<value>/`
+  // Returns nil if the anchor has no `.vol/...` portion.
+  private func _findAnchorVolDotPosition() -> Index? {
+    // Bare /.vol/ — the `.` is at startIndex+1.
+    if self.starts(with: Self._volAnchor) {
+      return self.index(after: startIndex)
+    }
+    // /.nofollow/.vol/ — the `.` of `.vol` is right after `/.nofollow/`.
+    if self.starts(with: Self._nofollowAnchor) {
+      let after = self.index(
+        startIndex, offsetBy: Self._nofollowAnchor.count)
+      if after < endIndex, self[after] == ._dot, _matchesVol(from: after) {
+        return after
+      }
+      return nil
+    }
+    // /.resolve/<value>/.vol/ — match prefix manually since <value> is
+    // variable length.
+    guard !isEmpty, self.first == ._slash else { return nil }
+    let afterFirstSlash = self.index(after: startIndex)
+    guard self[afterFirstSlash...].starts(with: Self._resolveToken) else {
+      return nil
+    }
+    let afterResolve = self.index(
+      afterFirstSlash, offsetBy: Self._resolveToken.count)
+    guard afterResolve < endIndex, self[afterResolve] == ._slash else {
+      return nil
+    }
+    let valueStart = self.index(after: afterResolve)
+    guard let valueEnd = self[valueStart...].firstIndex(of: ._slash) else {
+      return nil
+    }
+    guard valueStart < valueEnd else { return nil }
+    let after = self.index(after: valueEnd)
+    if after < endIndex, self[after] == ._dot, _matchesVol(from: after) {
+      return after
+    }
+    return nil
   }
 }
 

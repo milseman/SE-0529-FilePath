@@ -71,18 +71,23 @@ extension AllTests.DecompositionTests {
     }
   }
 
-  // MARK: - Probe 1: Darwin relative-portion re-parse
+  // MARK: - Probe 1: Darwin relative-portion re-parse vs combined anchors
   //
   // `_normalizeDarwin` extracts the relative portion into a fresh string and
   // dot-normalizes it; that path re-runs `_parseRoot()` on the slice. This
-  // pins that a relative component literally NAMED like an anchor token
-  // (`.vol`, `.nofollow`, `.resolve`) does NOT spuriously produce a second
-  // anchor: the leading anchor stands and the token-named bytes remain plain
-  // components.
+  // pins which token-shaped sequences AFTER a leading anchor extend the
+  // anchor and which fall back to plain components.
   //
-  // SPECIFIED: the proposal's general model — anchor is the leading
-  // volfs/resolve anchor, everything after is opaque components (lines 91,
-  // 103, 105 of the proposal). No conflict observed.
+  // Per the proposal (line 111): an anchor may include resolve flags AND/OR
+  // a volume identifier; resolve always precedes vol. So:
+  // - `.vol` after a leading vol/nofollow/resolve flag: the only valid
+  //   continuation. `/.nofollow/.vol/N/M` is a single combined anchor.
+  // - Anything else after a leading anchor (vol after vol, nofollow after
+  //   anything, resolve after anything): the leading anchor stands and the
+  //   token-named bytes remain plain components.
+  //
+  // SPECIFIED: proposal lines 91, 103, 105 (general model) and 111
+  // (combined anchors). No conflict observed.
   @Test
   func probeDarwinRelativeReparse() {
     // .vol token as a relative component under a volfs anchor.
@@ -97,9 +102,10 @@ extension AllTests.DecompositionTests {
     probe("/.vol/1234/5678/.resolve/3/x", platform: .darwin,
       anchor: "/.vol/1234/5678", components: [".resolve", "3", "x"],
       printed: "/.vol/1234/5678/.resolve/3/x")
-    // .vol tokens as relative components under a .nofollow anchor.
+    // .vol AFTER .nofollow forms a combined anchor — proposal line 111:
+    // an anchor may include resolve flags AND/OR a volume identifier.
     probe("/.nofollow/.vol/1234/5678", platform: .darwin,
-      anchor: "/.nofollow/", components: [".vol", "1234", "5678"],
+      anchor: "/.nofollow/.vol/1234/5678", components: [],
       printed: "/.nofollow/.vol/1234/5678")
     // .nofollow token as a relative component under a .nofollow anchor.
     probe("/.nofollow/.nofollow/x", platform: .darwin,
