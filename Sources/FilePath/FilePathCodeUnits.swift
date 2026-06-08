@@ -141,15 +141,8 @@ extension FilePath.Component {
   @available(SwiftStdlib 9999, *)
   public init?(codeUnits: Span<FilePath.CodeUnit>) {
     guard !codeUnits.isEmpty else { return nil }
-    var chars = [FilePath.CodeUnit]()
-    chars.reserveCapacity(codeUnits.count)
-    for i in codeUnits.indices {
-      let c = codeUnits[i]
-      guard c != ._null else { return nil }
-      chars.append(c)
-    }
-    self.init(_validating: _SystemString(chars))
-    // TODO(post-PR): these inits can be cleaned up
+    guard let path = FilePath(codeUnits: codeUnits) else { return nil }
+    self.init(_validating: path)
   }
 }
 

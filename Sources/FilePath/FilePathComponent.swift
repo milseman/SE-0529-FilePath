@@ -113,11 +113,8 @@ extension FilePath.Component: ExpressibleByStringLiteral {
   @available(SwiftStdlib 9999, *)
   public init?(_ string: String) {
     guard !string.isEmpty else { return nil }
-    // Reject NUL before building storage: a NUL-bearing _SystemString would
-    // trip its own interior-null invariant. (NUL is byte 0 in both UTF-8 and
-    // UTF-16, so the UTF-8 check covers the Windows build too.)
-    guard !string.utf8.contains(0) else { return nil }
-    self.init(_validating: _SystemString(string))
+    guard let path = FilePath(string) else { return nil }
+    self.init(_validating: path)
   }
 }
 
@@ -125,20 +122,16 @@ extension FilePath.Component: ExpressibleByStringLiteral {
 extension FilePath.Component {
   /// Shared validation behind `init?(_:)` and `init?(codeUnits:)`.
   ///
-  /// `str` must already be free of `NUL` (callers check first). Succeeds only
-  /// when `str` normalizes to exactly one component with no anchor and no
-  /// trailing separator — i.e. a bare component with no embedded *or* trailing
-  /// directory separator, matching the contract that a component contains no
-  /// separators. So `a/b` (interior) and `a/` (trailing) are both rejected,
-  /// as is any anchored input.
-  internal init?(_validating str: _SystemString) {
-    let path = FilePath(_normalizing: str)
+  /// Succeeds only when `path` is exactly one component with no anchor and
+  /// no trailing separator — i.e. a bare component with no embedded *or*
+  /// trailing directory separator, matching the contract that a component
+  /// contains no separators. So `a/b` (interior) and `a/` (trailing) are
+  /// both rejected, as is any anchored input. NUL-rejection has already
+  /// happened in `FilePath.init?`; callers funnel through one of those.
+  internal init?(_validating path: FilePath) {
     guard path.anchor == nil, !path.hasTrailingSeparator else { return nil }
     let comps = path.components
     guard comps.count == 1 else { return nil }
     self = comps.first!
-
-    // TODO(post-PR): Probably have this take a FilePath or span or something instead
-    // and do it in one shot
   }
 }
