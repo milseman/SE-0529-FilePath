@@ -34,18 +34,17 @@ extension FilePath {
       let (rootEnd, relBegin) = _path._storage._parseRoot()
       self._originalStart = rootEnd
       self._relStart = relBegin
-
-      if _isDarwin, let rsrcStart = _path._storage._resourceForkSuffixStart {
-        // If suffix starts before or at the relative region, there are
-        // no relative components at all.
-        self._relEnd = rsrcStart >= relBegin ? rsrcStart : relBegin
-      } else {
-        self._relEnd = _path._storage.endIndex
-      }
+      // `_relEnd` excludes any structural suffix beyond the iterable
+      // component region: a Darwin resource-fork suffix (`/file/..namedfork/rsrc`
+      // → `_relEnd` at the leading `/` of the suffix), OR a trailing separator
+      // on the relative region (`/foo/bar/` → `_relEnd` at the trailing `/`).
+      // Both kinds live in `[_relEnd, _suffixEnd)` and are absorbed by splice
+      // operations that touch the end. The trailing-sep case requires the
+      // `relBegin` guard: for `/`, `\\server\share\`, `C:\`, etc., the trailing
+      // byte of storage IS a separator but it belongs to the anchor/gap, not
+      // to the relative region.
+      self._relEnd = _path._storage._componentViewRelEnd(relBegin: relBegin)
       self._suffixEnd = _path._storage.endIndex
-
-      // TODO(post-PR): double check why the trailing slash should be included but not
-      // resource fork
 
       _internalInvariant(_originalStart <= _relStart)
       _internalInvariant(_relStart <= _relEnd)
@@ -75,6 +74,37 @@ extension FilePath.ComponentView {
 }
 
 // MARK: - Internal helpers
+
+@available(SwiftStdlib 9999, *)
+extension _SystemString {
+  /// The end of the iterable component region for `ComponentView`.
+  ///
+  /// Excludes structural suffixes that live in `[_relEnd, _suffixEnd)`:
+  /// a Darwin resource-fork suffix (the leading `/` of `/..namedfork/rsrc`)
+  /// or a trailing separator on the relative region. Returns `endIndex`
+  /// when there is no such suffix.
+  ///
+  /// The `relBegin` guard for the trailing separator is essential: for
+  /// paths like `/`, `\\server\share\`, `C:\`, the trailing byte of
+  /// storage IS a separator but it belongs to the anchor/gap, not the
+  /// relative region. For the resource-fork case, an overlap with the
+  /// anchor region (`/..namedfork/rsrc` → `rsrcStart < relBegin`) means
+  /// there are no relative components at all.
+  internal func _componentViewRelEnd(
+    relBegin: Index
+  ) -> Index {
+    if _isDarwin, let rsrcStart = _resourceForkSuffixStart {
+      return rsrcStart >= relBegin ? rsrcStart : relBegin
+    }
+    if !isEmpty {
+      let lastIdx = index(before: endIndex)
+      if _isSeparator(self[lastIdx]) && lastIdx >= relBegin {
+        return lastIdx
+      }
+    }
+    return endIndex
+  }
+}
 
 @available(SwiftStdlib 9999, *)
 extension FilePath.ComponentView {
@@ -263,11 +293,7 @@ extension FilePath.ComponentView: RangeReplaceableCollection {
     // of how the post-mutation bytes re-decompose.
     let (_, newRelBegin) = _path._storage._parseRoot()
     _relStart = newRelBegin
-    if _isDarwin, let rsrcStart = _path._storage._resourceForkSuffixStart {
-      _relEnd = rsrcStart >= newRelBegin ? rsrcStart : newRelBegin
-    } else {
-      _relEnd = _path._storage.endIndex
-    }
+    _relEnd = _path._storage._componentViewRelEnd(relBegin: newRelBegin)
     _suffixEnd = _path._storage.endIndex
   }
 }
