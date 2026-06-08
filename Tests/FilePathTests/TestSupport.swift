@@ -215,3 +215,30 @@ func universal(_ canonicalSlashForm: String) -> String {
     ? canonicalSlashForm.replacingOccurrences(of: "/", with: "\\")
     : canonicalSlashForm
 }
+
+// MARK: - Windows-only API shims
+//
+// `driveLetter` and `isVerbatimComponent` on `FilePath.Anchor` are gated
+// under `#if os(Windows)` in the source per the proposal. Test bodies
+// inside `withPlatform(.windows)` blocks must still type-check on
+// non-Windows builds (where they run inert), so these shims expose the
+// properties on every build — returning the real value on Windows and
+// a benign default elsewhere.
+
+extension FilePath.Anchor {
+  var _driveLetter: Unicode.Scalar? {
+    #if os(Windows)
+    return self.driveLetter
+    #else
+    return nil
+    #endif
+  }
+
+  var _isVerbatimComponent: Bool {
+    #if os(Windows)
+    return self.isVerbatimComponent
+    #else
+    return false
+    #endif
+  }
+}

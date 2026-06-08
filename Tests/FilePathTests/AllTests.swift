@@ -10,9 +10,13 @@
 import Testing
 @testable import FilePath
 
-// All test suites that mutate the REVIEW_ONLY_platform global must
-// be nested inside this single serialized suite, so the runner
-// never interleaves tests from different suites.
+// These suites historically ran under `@Suite(.serialized)` so the runner
+// never interleaved tests that mutated a shared mutable platform global.
+// That global is gone — platform selection is now compile-time
+// (see FilePathParsing.swift `_isWindows` / `_isDarwin` / `_isLinux`,
+// and TestSupport.swift `_builtPlatform`) — so serialization is no
+// longer strictly required. Kept as harmless and to preserve a stable
+// run order.
 @Suite(.serialized)
 struct AllTests {
   struct DecompositionTests {}

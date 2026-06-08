@@ -283,12 +283,12 @@ extension AllTests.ReconstructionTests {
       // Proposal example (lines 46-50).
       var p = FilePath(#"C:\Users\dev\project"#)
       expectTrue(p.anchor?.description == #"C:\"#, "starts as C:\\")
-      expectTrue(p.anchor?.isVerbatimComponent == false, "not verbatim initially")
+      expectTrue(p.anchor?._isVerbatimComponent == false, "not verbatim initially")
 
       p.anchor = FilePath.Anchor(#"\\?\C:\"#)
       expectEqual(p.description, #"\\?\C:\Users\dev\project"#, "transplanted to verbatim")
-      expectTrue(p.anchor?.isVerbatimComponent == true, "now verbatim")
-      expectTrue(p.anchor?.driveLetter == "C", "drive letter preserved")
+      expectTrue(p.anchor?._isVerbatimComponent == true, "now verbatim")
+      expectTrue(p.anchor?._driveLetter == "C", "drive letter preserved")
     }
   }
 

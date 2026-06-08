@@ -43,12 +43,12 @@ public struct FilePath: Sendable {
     _internalInvariant(_isLinux)
     var s = str
     s._normalizeSeparators()
-    let (rootEnd, _) = s._parseRoot()
+    let (rootEnd, relBegin) = s._parseRoot()
     let isRooted = rootEnd != s.startIndex
     var result = _SystemString()
-    result.append(contentsOf: s[s.startIndex..<rootEnd])
+    result.append(contentsOf: s[s.startIndex..<relBegin])  // anchor + gap
     _ = s._normalizeDots(
-      over: rootEnd..<s.endIndex, isRooted: isRooted, into: &result)
+      over: relBegin..<s.endIndex, isRooted: isRooted, into: &result)
     return FilePath(_storage: result)
   }
 
@@ -56,7 +56,7 @@ public struct FilePath: Sendable {
     var s = str
     s._normalizeSeparators()
     let isVerbatim = _isVerbatimComponentPath(s)
-    let (rootEnd, _) = s._parseRoot()
+    let (rootEnd, relBegin) = s._parseRoot()
     let hasRoot = rootEnd != s.startIndex
     let isRooted: Bool
     if hasRoot {
@@ -72,13 +72,13 @@ public struct FilePath: Sendable {
       isRooted = false
     }
     var result = _SystemString()
-    result.append(contentsOf: s[s.startIndex..<rootEnd])
+    result.append(contentsOf: s[s.startIndex..<relBegin])  // anchor + gap
     if isVerbatim {
       // Verbatim paths: `.` and `..` are regular component names.
-      result.append(contentsOf: s[rootEnd..<s.endIndex])
+      result.append(contentsOf: s[relBegin..<s.endIndex])
     } else {
       _ = s._normalizeDots(
-        over: rootEnd..<s.endIndex, isRooted: isRooted, into: &result)
+        over: relBegin..<s.endIndex, isRooted: isRooted, into: &result)
     }
     return FilePath(_storage: result)
   }
@@ -131,6 +131,7 @@ public struct FilePath: Sendable {
       over: relBegin..<suffixStart, isRooted: hasAnchor, into: &result)
 
     if needsAnchorSep && !didEmitRelative {
+      _internalInvariant(result.last == ._slash)
       result.removeLast()
     }
 
@@ -139,6 +140,7 @@ public struct FilePath: Sendable {
     let hasSuffix = suffixStart < s.endIndex
     if hasSuffix && didEmitRelative
        && _isSeparator(result[result.index(before: result.endIndex)]) {
+      _internalInvariant(_isSeparator(result.last!))
       result.removeLast()
     }
 

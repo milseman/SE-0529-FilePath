@@ -213,13 +213,13 @@ extension AllTests.DecompositionTests {
       let dotInput: String = #"\\."#
       let dot = FilePath(dotInput)!
       expectTrue(dot.isAbsolute, #"\\. should be absolute (observed)"#)
-      expectFalse(dot.anchor?.isVerbatimComponent ?? true,
+      expectFalse(dot.anchor?._isVerbatimComponent ?? true,
         #"\\. is device-namespace, not verbatim (observed)"#)
 
       let qInput: String = #"\\?"#
       let q = FilePath(qInput)!
       expectTrue(q.isAbsolute, #"\\? should be absolute (observed)"#)
-      expectTrue(q.anchor?.isVerbatimComponent ?? false,
+      expectTrue(q.anchor?._isVerbatimComponent ?? false,
         #"\\? becomes verbatim-component (observed)"#)
     }
   }

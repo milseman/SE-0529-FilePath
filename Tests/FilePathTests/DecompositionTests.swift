@@ -63,8 +63,8 @@ extension AllTests.DecompositionTests {
 
       // driveLetter
       if let expectedDrive = expected.driveLetter {
-        expectTrue(path.anchor?.driveLetter == expectedDrive,
-          "[\(platform)] input=\(tc.input.debugDescription) driveLetter: got \(path.anchor?.driveLetter.debugDescription ?? "nil"), expected \(expectedDrive)")
+        expectTrue(path.anchor?._driveLetter == expectedDrive,
+          "[\(platform)] input=\(tc.input.debugDescription) driveLetter: got \(path.anchor?._driveLetter.debugDescription ?? "nil"), expected \(expectedDrive)")
       }
 
       // kinds

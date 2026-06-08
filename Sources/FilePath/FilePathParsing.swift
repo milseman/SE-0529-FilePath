@@ -176,6 +176,7 @@ extension _SystemString {
         self.formIndex(after: &readIdx)
       }
     }
+    _internalInvariant(readIdx == endIndex)
     self.removeLast(self.distance(from: writeIdx, to: readIdx))
   }
 }
@@ -206,6 +207,16 @@ extension _SystemString {
     isRooted: Bool,
     into result: inout _SystemString
   ) -> Bool {
+    // Precondition: the caller has already placed any anchor + gap bytes
+    // into `result`, so the range covers the relative portion only — never
+    // starts on a separator. (For Windows UNC, this is the difference
+    // between `rootEnd` and `relativeBegin`.)
+    _internalInvariant(
+      range.lowerBound >= startIndex && range.upperBound <= endIndex)
+    _internalInvariant(
+      range.isEmpty || !_isSeparator(self[range.lowerBound]),
+      "_normalizeDots range must start past any gap separator")
+
     var readIdx = range.lowerBound
     let end = range.upperBound
     var componentIndex = 0

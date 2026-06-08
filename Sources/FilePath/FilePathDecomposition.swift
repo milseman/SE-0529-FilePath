@@ -158,6 +158,7 @@ extension FilePath {
         if !isEmpty && _isSeparator(_storage.last!) {
           let (_, relBegin) = _storage._parseRoot()
           if _storage.index(before: _storage.endIndex) >= relBegin {
+            _internalInvariant(_isSeparator(_storage.last!))
             _storage.removeLast()
           }
         }
@@ -201,6 +202,7 @@ extension FilePath {
         // Avoid double separator when path already ends with one
         if !_storage.isEmpty && _isSeparator(_storage.last!)
            && !suffix.isEmpty && _isSeparator(suffix.first!) {
+          _internalInvariant(_isSeparator(suffix.first!))
           suffix.removeFirst()
         }
         _storage.append(contentsOf: suffix)

@@ -60,8 +60,10 @@ func dump(_ input: String) {
     print("  anchor:")
     print("    description:        \(quoted(anchor.description))")
     print("    isRooted:           \(anchor.isRooted)")
+    #if os(Windows)
     print("    driveLetter:        \(anchor.driveLetter.map { quoted(String(Character($0))) } ?? "nil")")
     print("    isVerbatimComponent: \(anchor.isVerbatimComponent)")
+    #endif
   } else {
     print("  anchor:               nil")
   }
