@@ -35,11 +35,12 @@ import Foundation
 //   ==> Test bodies MUST NOT call `#expect` (or `Testing.withKnownIssue`)
 //       directly. Use the helpers below.
 //
-// PORT NOTE (platform): `withPlatform` / `forEachPlatform` are the ONLY places
+// PORT NOTE (platform): `withPlatform` / `withPlatforms` are the ONLY places
 // that consult `_builtPlatform`. There is no runtime platform global anymore:
 // `withPlatform(p)` runs its body only when `p` is the single built platform,
-// and `forEachPlatform` calls its body exactly once, for that platform.
-// Nothing in a test body should select the platform except through these.
+// and `withPlatforms(p1, p2, …)` runs its body when `_builtPlatform` is in the
+// list. Universal tests need no gate at all (they run on whichever platform
+// is built). Nothing in a test body should select the platform any other way.
 // ===========================================================================
 
 // MARK: - Assertion seam
@@ -131,16 +132,17 @@ func expectKnownIssue(
 
 // MARK: - Platform-runner seam
 
-/// The review-time platform enum, formerly vended by the library (and compiled
-/// away in the real stdlib). The library no longer carries it; the test target
-/// keeps its own copy so the platform-specific tests can name the platform they
-/// pin. INTERNAL (not private) on purpose: other test files reference it.
-enum REVIEW_ONLY_Platform: Sendable { case linux, darwin, windows }
+/// The platform enum used to gate platform-specific test bodies. The library
+/// no longer carries a platform type (folded into compile-time predicates);
+/// the test target keeps its own copy so the platform-specific tests can name
+/// the platform they pin. INTERNAL (not private) on purpose: other test files
+/// reference it.
+enum _Platform: Sendable { case linux, darwin, windows }
 
 /// The single platform this test target was built for, selected at compile
 /// time. The test-side mirror of the library's `_isWindows` / `_isDarwin`
 /// predicates.
-let _builtPlatform: REVIEW_ONLY_Platform = {
+let _builtPlatform: _Platform = {
   #if os(Windows)
   .windows
   #elseif canImport(Darwin)
@@ -150,26 +152,27 @@ let _builtPlatform: REVIEW_ONLY_Platform = {
   #endif
 }()
 
-/// All review-time platforms. After the compile-time fold this is just the one
-/// built platform; kept as an array so existing call shapes compile unchanged.
-let allReviewPlatforms: [REVIEW_ONLY_Platform] = [_builtPlatform]
-
 /// Runs `body` only when `p` is the platform this target was built for;
 /// otherwise does nothing. (A non-built-platform body is inert — the test still
 /// runs and passes, it just makes no assertions.)
 func withPlatform(
-  _ p: REVIEW_ONLY_Platform,
+  _ p: _Platform,
   _ body: () throws -> Void
 ) rethrows {
   guard p == _builtPlatform else { return }
   try body()
 }
 
-/// Runs `body` exactly once, for the platform this target was built for.
-func forEachPlatform(
-  _ body: (REVIEW_ONLY_Platform) throws -> Void
+/// Runs `body` when the built platform is one of `ps`; otherwise does nothing.
+/// Use for tests that are valid on more than one platform but not all — the
+/// canonical case is "any unix" via `withPlatforms(.linux, .darwin)`. For tests
+/// valid on every platform, omit the gate entirely.
+func withPlatforms(
+  _ ps: _Platform...,
+  body: () throws -> Void
 ) rethrows {
-  try body(_builtPlatform)
+  guard ps.contains(_builtPlatform) else { return }
+  try body()
 }
 
 // MARK: - Universal path literals

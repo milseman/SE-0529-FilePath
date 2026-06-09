@@ -27,8 +27,9 @@ import Testing
 //     bytes, then component bytes, then suffix as the final tiebreaker.
 //     (Proposal line 724.)
 //
-// All bodies go through the TestSupport seam (helpers + with/forEachPlatform);
-// nothing here touches `#expect` or `REVIEW_ONLY_platform` directly.
+// All bodies go through the TestSupport seam: assertions through `expect*`,
+// platform selection through `withPlatform`. Universal tests (those that
+// would behave the same on every platform) carry no platform gate.
 
 extension AllTests.EqualityTests {
 
@@ -39,34 +40,24 @@ extension AllTests.EqualityTests {
   // every platform (separator coalescing + dot normalization).
   @Test
   func encodingDifferencesAreEqual() {
-    forEachPlatform { platform in
-      expectEqual(FilePath("a///b"), FilePath("a/b"),
-        "[\(platform)] a///b == a/b")
-      expectEqual(FilePath("a/./b"), FilePath("a/b"),
-        "[\(platform)] a/./b == a/b")
-      expectEqual(FilePath("/./foo"), FilePath("/foo"),
-        "[\(platform)] /./foo == /foo")
-    }
+    expectEqual(FilePath("a///b"), FilePath("a/b"), "a///b == a/b")
+    expectEqual(FilePath("a/./b"), FilePath("a/b"), "a/./b == a/b")
+    expectEqual(FilePath("/./foo"), FilePath("/foo"), "/./foo == /foo")
   }
 
   // MARK: - Suffix significance (proposal lines 713-714)
 
   @Test
   func trailingSeparatorIsSignificant() {
-    forEachPlatform { platform in
-      // "/tmp/foo" vs "/tmp/foo/": the trailing separator is meaningful.
-      expectNotEqual(FilePath("/tmp/foo"), FilePath("/tmp/foo/"),
-        "[\(platform)] trailing separator differs")
-    }
+    // "/tmp/foo" vs "/tmp/foo/": the trailing separator is meaningful.
+    expectNotEqual(FilePath("/tmp/foo"), FilePath("/tmp/foo/"),
+      "trailing separator differs")
   }
 
   @Test
   func currentDirectoryIsNotEmpty() {
-    forEachPlatform { platform in
-      // "." has one component; "" is empty.
-      expectNotEqual(FilePath("."), FilePath(""),
-        "[\(platform)] \".\" != \"\"")
-    }
+    // "." has one component; "" is empty.
+    expectNotEqual(FilePath("."), FilePath(""), "\".\" != \"\"")
   }
 
   // MARK: - Anchor significance (proposal lines 716-717)
@@ -124,14 +115,12 @@ extension AllTests.EqualityTests {
   // differently — that is not required.)
   @Test
   func hashAgreesWithEquality() {
-    forEachPlatform { platform in
-      expectEqual(FilePath("a///b").hashValue, FilePath("a/b").hashValue,
-        "[\(platform)] hash(a///b) == hash(a/b)")
-      expectEqual(FilePath("a/./b").hashValue, FilePath("a/b").hashValue,
-        "[\(platform)] hash(a/./b) == hash(a/b)")
-      expectEqual(FilePath("/./foo").hashValue, FilePath("/foo").hashValue,
-        "[\(platform)] hash(/./foo) == hash(/foo)")
-    }
+    expectEqual(FilePath("a///b").hashValue, FilePath("a/b").hashValue,
+      "hash(a///b) == hash(a/b)")
+    expectEqual(FilePath("a/./b").hashValue, FilePath("a/b").hashValue,
+      "hash(a/./b) == hash(a/b)")
+    expectEqual(FilePath("/./foo").hashValue, FilePath("/foo").hashValue,
+      "hash(/./foo) == hash(/foo)")
     withPlatform(.darwin) {
       expectEqual(FilePath("/.resolve/1/foo").hashValue,
                   FilePath("/.nofollow/foo").hashValue,
@@ -163,74 +152,66 @@ extension AllTests.EqualityTests {
 
   @Test
   func orderingDistinguishesOnComponents() {
-    withPlatform(.linux) {
-      // Same (no) anchor, same suffix; differ only in component bytes.
-      expectTrue(FilePath("foo/aaa") < FilePath("foo/bbb"),
-        "foo/aaa < foo/bbb")
-      expectFalse(FilePath("foo/bbb") < FilePath("foo/aaa"),
-        "not foo/bbb < foo/aaa")
-    }
+    // Same (no) anchor, same suffix; differ only in component bytes.
+    expectTrue(FilePath("foo/aaa") < FilePath("foo/bbb"),
+      "foo/aaa < foo/bbb")
+    expectFalse(FilePath("foo/bbb") < FilePath("foo/aaa"),
+      "not foo/bbb < foo/aaa")
   }
 
   @Test
   func orderingDistinguishesOnSuffix() {
-    withPlatform(.linux) {
-      // Same anchor, same components; differ only by trailing separator.
-      // The unsuffixed path is a proper prefix of the suffixed one, so it
-      // sorts first — the suffix is the final tiebreaker.
-      expectTrue(FilePath("/tmp/foo") < FilePath("/tmp/foo/"),
-        "/tmp/foo < /tmp/foo/")
-      expectFalse(FilePath("/tmp/foo/") < FilePath("/tmp/foo"),
-        "not /tmp/foo/ < /tmp/foo")
-    }
+    // Same anchor, same components; differ only by trailing separator.
+    // The unsuffixed path is a proper prefix of the suffixed one, so it
+    // sorts first — the suffix is the final tiebreaker.
+    expectTrue(FilePath("/tmp/foo") < FilePath("/tmp/foo/"),
+      "/tmp/foo < /tmp/foo/")
+    expectFalse(FilePath("/tmp/foo/") < FilePath("/tmp/foo"),
+      "not /tmp/foo/ < /tmp/foo")
   }
 
   @Test
   func orderingIsStrictTotalOnThreeElements() {
-    withPlatform(.linux) {
-      // Sorted order is "a" < "a/b" < "b":
-      //   "a"   is a proper prefix of "a/b"          => "a"   < "a/b"
-      //   "a/b" vs "b" first differ at 'a' < 'b'     => "a/b" < "b"
-      let p1 = FilePath("a")
-      let p2 = FilePath("a/b")
-      let p3 = FilePath("b")
+    // Sorted order is "a" < "a/b" < "b":
+    //   "a"   is a proper prefix of "a/b"          => "a"   < "a/b"
+    //   "a/b" vs "b" first differ at 'a' < 'b'     => "a/b" < "b"
+    let p1 = FilePath("a")
+    let p2 = FilePath("a/b")
+    let p3 = FilePath("b")
 
-      // irreflexivity
-      expectFalse(p1 < p1, "irreflexive p1")
-      expectFalse(p2 < p2, "irreflexive p2")
-      expectFalse(p3 < p3, "irreflexive p3")
+    // irreflexivity
+    expectFalse(p1 < p1, "irreflexive p1")
+    expectFalse(p2 < p2, "irreflexive p2")
+    expectFalse(p3 < p3, "irreflexive p3")
 
-      // the order itself
-      expectTrue(p1 < p2, "p1 < p2")
-      expectTrue(p2 < p3, "p2 < p3")
+    // the order itself
+    expectTrue(p1 < p2, "p1 < p2")
+    expectTrue(p2 < p3, "p2 < p3")
 
-      // antisymmetry (a < b implies not b < a)
-      expectFalse(p2 < p1, "antisymmetry p1/p2")
-      expectFalse(p3 < p2, "antisymmetry p2/p3")
+    // antisymmetry (a < b implies not b < a)
+    expectFalse(p2 < p1, "antisymmetry p1/p2")
+    expectFalse(p3 < p2, "antisymmetry p2/p3")
 
-      // transitivity (p1 < p2 and p2 < p3 implies p1 < p3)
-      expectTrue(p1 < p3, "transitivity p1 < p3")
-    }
+    // transitivity (p1 < p2 and p2 < p3 implies p1 < p3)
+    expectTrue(p1 < p3, "transitivity p1 < p3")
   }
 
   // MARK: - Component equality / ordering (brief)
 
   @Test
   func componentEqualityAndOrdering() {
-    withPlatform(.linux) {
-      expectEqual(FilePath.Component("foo"), FilePath.Component("foo"),
-        "foo == foo")
-      expectNotEqual(FilePath.Component("foo"), FilePath.Component("bar"),
-        "foo != bar")
-      expectEqual(FilePath.Component("foo").hashValue,
-                  FilePath.Component("foo").hashValue,
-        "equal components hash equal")
-      expectTrue(FilePath.Component("a") < FilePath.Component("b"),
-        "component a < b")
-      // A proper prefix sorts first.
-      expectTrue(FilePath.Component("a") < FilePath.Component("ab"),
-        "component a < ab")
-    }
+    expectEqual(FilePath.Component("foo"), FilePath.Component("foo"),
+      "foo == foo")
+    expectNotEqual(FilePath.Component("foo"), FilePath.Component("bar"),
+      "foo != bar")
+    expectEqual(FilePath.Component("foo").hashValue,
+                FilePath.Component("foo").hashValue,
+      "equal components hash equal")
+    expectTrue(FilePath.Component("a") < FilePath.Component("b"),
+      "component a < b")
+    // A proper prefix sorts first.
+    expectTrue(FilePath.Component("a") < FilePath.Component("ab"),
+      "component a < ab")
   }
 
   // MARK: - Anchor equality / ordering (brief)

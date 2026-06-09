@@ -27,7 +27,7 @@ extension AllTests.DecompositionTests {
   /// failure points at the assertion row rather than this helper.
   private func expectDecomposition(
     _ input: String,
-    platform: REVIEW_ONLY_Platform,
+    platform: _Platform,
     anchor: String?,
     components: [String],
     trailingSeparator: Bool = false,
