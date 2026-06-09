@@ -196,17 +196,18 @@ extension FilePath {
         }
         return
       }
-      // Add the resource fork suffix.
+      // Add the resource fork suffix. The literal starts with `/`, so
+      // when storage already ends in a separator we drop the leading `/`
+      // to avoid storing two in a row.
       if hasTrailingSeparator {
         hasTrailingSeparator = false
       }
-      var suffix = _SystemString._resourceForkSuffix
-      // Avoid double separator when path already ends with one.
-      if !_storage.isEmpty && _isSeparator(_storage.last!)
-         && !suffix.isEmpty && _isSeparator(suffix.first!) {
-        suffix.removeFirst()
+      let suffix = _SystemString._resourceForkSuffix._asciiBytes
+      if !_storage.isEmpty && _isSeparator(_storage.last!) {
+        _storage.append(contentsOf: suffix.dropFirst())
+      } else {
+        _storage.append(contentsOf: suffix)
       }
-      _storage.append(contentsOf: suffix)
     }
   }
 
@@ -243,31 +244,31 @@ extension FilePath {
     if let anchor = anchor {
       str.append(contentsOf: anchor._slice)
     }
+    // Whether a separator is needed between the anchor and the first
+    // component, when one or more components follow.
+    let anchorNeedsSep = anchor.map {
+      _anchorNeedsGapSeparator($0._slice)
+    } ?? false
 
-    let comps = Array(components)
-
-    for (i, comp) in comps.enumerated() {
-      if i == 0 {
-        // Insert a separator between anchor and first component if the
-        // anchor's shape needs one.
-        if let anchor = anchor, _anchorNeedsGapSeparator(anchor._slice) {
-          str.append(_platformSeparator)
-        }
-      } else {
+    var hasComponents = false
+    for comp in components {
+      // First component: separator iff the anchor's shape needs one.
+      // Subsequent components: always a separator.
+      if hasComponents || anchorNeedsSep {
         str.append(_platformSeparator)
       }
       str.append(contentsOf: comp._slice)
+      hasComponents = true
     }
 
     if hasTrailingSeparator {
-      if !comps.isEmpty {
+      if hasComponents {
         str.append(_platformSeparator)
-      } else if anchor != nil {
-        // Trailing sep on anchor-only path (e.g., \\server\share\)
-        // Add separator if anchor doesn't already end with one
-        if let last = anchor?._slice.last, !_isSeparator(last) {
-          str.append(_platformSeparator)
-        }
+      } else if let anchor = anchor, let last = anchor._slice.last,
+                !_isSeparator(last) {
+        // Trailing sep on an anchor-only path (e.g., `\\server\share\`):
+        // add a separator only if the anchor doesn't already end with one.
+        str.append(_platformSeparator)
       }
     }
 
