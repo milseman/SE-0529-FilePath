@@ -68,8 +68,8 @@ extension _SystemString {
   }
 
   // Shared parser for the `.vol/FSID/FILEID[/]` body. Returns the
-  // FILEID range (used by canonicalize to test for `2`) and the
-  // relative-portion start (which is past the trailing `/` if any).
+  // FILEID range and the relative-portion start (past the trailing
+  // `/` if any).
   private func _parseVolBody(
     from dotIdx: Index
   ) -> (fileidRange: Range<Index>, relativeBegin: Index)? {

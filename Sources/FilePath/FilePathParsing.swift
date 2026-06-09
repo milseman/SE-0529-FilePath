@@ -20,8 +20,6 @@ internal var _isLinux:   Bool { false }
 internal var _isWindows: Bool { false }
 internal var _isDarwin:  Bool { true }
 internal var _isLinux:   Bool { false }
-// TODO(post-merge): what all can we fold in here? basically any generic POSIX platform that folds `//` into `/`
-// ... #elseif os(Linux) || os(Android) || os(FreeBSD) || os(OpenBSD) || os(WASI)
 #elseif os(Linux)
 internal var _isWindows: Bool { false }
 internal var _isDarwin:  Bool { false }
@@ -180,8 +178,7 @@ extension _SystemString {
 
 @available(SwiftStdlib 9999, *)
 extension _SystemString {
-  // Append the dot-normalized form of `self[range]` to `result`, per the
-  // proposal rules:
+  // Append the dot-normalized form of `self[range]` to `result`. Rules:
   // - `.` is dropped unless it is the leading component of an unrooted path
   // - Trailing `.` becomes a trailing separator (foo/. -> foo/)
   // - `..` is always preserved
