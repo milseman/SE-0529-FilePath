@@ -161,13 +161,10 @@ extension _SystemString {
     let fileidEnd = self[fileidStart...].firstIndex(of: ._slash) ?? endIndex
     guard fileidStart < fileidEnd else { return nil }
 
-    // anchorEnd is at fileidEnd (the anchor is /.vol/FSID/FILEID without trailing /)
-    let relBegin: _SystemString.Index
-    if fileidEnd < endIndex && self[fileidEnd] == ._slash {
-      relBegin = index(after: fileidEnd)
-    } else {
-      relBegin = fileidEnd
-    }
+    // anchorEnd is at fileidEnd (the anchor is /.vol/FSID/FILEID without
+    // trailing /). `fileidEnd` came from `firstIndex(of: ._slash)`, so when
+    // it is below `endIndex` the byte there is by construction a separator.
+    let relBegin = fileidEnd < endIndex ? index(after: fileidEnd) : fileidEnd
 
     return _ParsedDarwinAnchor(
       anchorEnd: fileidEnd,

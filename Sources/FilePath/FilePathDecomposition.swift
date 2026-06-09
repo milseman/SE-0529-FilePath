@@ -99,14 +99,9 @@ extension FilePath {
   public var isAbsolute: Bool {
     guard let anchor = anchor else { return false }
     if !_isWindows { return true }
-
-    // On Windows, only fully qualified paths are absolute
-    let slice = anchor._slice
-    guard slice.count >= 3 else {
-      // `\` (1 char) or `C:` (2 chars) are relative
-      return false
-    }
-    return true
+    // On Windows, only fully qualified paths are absolute. The relative
+    // anchors are `\` (1 byte) and `C:` (2 bytes); 3+ bytes is absolute.
+    return anchor._slice.count >= 3
   }
 
 }
@@ -141,27 +136,24 @@ extension FilePath {
     }
     set {
       if newValue == hasTrailingSeparator { return }
-      if newValue {
-        // Add trailing separator
-        if isEmpty { return }
-        if _storage._hasResourceForkSuffix() {
-          // Replace resource fork with trailing sep
-          if let rsrcStart = _storage._resourceForkSuffixStart {
-            _storage.removeSubrange(rsrcStart..<_storage.endIndex)
-          }
+      if !newValue {
+        // Remove the trailing separator. The getter returned true, so the
+        // last byte is a separator; drop it unless it's the structural gap
+        // separator (when relBegin > rootEnd, e.g. `\\server\share\`),
+        // which belongs to the anchor.
+        let (_, relBegin) = _storage._parseRoot()
+        if _storage.index(before: _storage.endIndex) >= relBegin {
+          _storage.removeLast()
         }
-        if !_isSeparator(_storage.last!) {
-          _storage.append(_platformSeparator)
-        }
-      } else {
-        // Remove trailing separator
-        if !isEmpty && _isSeparator(_storage.last!) {
-          let (_, relBegin) = _storage._parseRoot()
-          if _storage.index(before: _storage.endIndex) >= relBegin {
-            _internalInvariant(_isSeparator(_storage.last!))
-            _storage.removeLast()
-          }
-        }
+        return
+      }
+      // Add a trailing separator.
+      if isEmpty { return }
+      if let rsrcStart = _storage._resourceForkSuffixStart {
+        _storage.removeSubrange(rsrcStart..<_storage.endIndex)
+      }
+      if !_isSeparator(_storage.last!) {
+        _storage.append(_platformSeparator)
       }
     }
   }
@@ -197,25 +189,24 @@ extension FilePath {
     get { _storage._hasResourceForkSuffix() }
     set {
       if newValue == isResourceFork { return }
-      if newValue {
-        // Add resource fork suffix
-        if hasTrailingSeparator {
-          hasTrailingSeparator = false
-        }
-        var suffix = _SystemString._resourceForkSuffix
-        // Avoid double separator when path already ends with one
-        if !_storage.isEmpty && _isSeparator(_storage.last!)
-           && !suffix.isEmpty && _isSeparator(suffix.first!) {
-          _internalInvariant(_isSeparator(suffix.first!))
-          suffix.removeFirst()
-        }
-        _storage.append(contentsOf: suffix)
-      } else {
-        // Remove resource fork suffix
+      if !newValue {
+        // Remove the resource fork suffix.
         if let rsrcStart = _storage._resourceForkSuffixStart {
           _storage.removeSubrange(rsrcStart..<_storage.endIndex)
         }
+        return
       }
+      // Add the resource fork suffix.
+      if hasTrailingSeparator {
+        hasTrailingSeparator = false
+      }
+      var suffix = _SystemString._resourceForkSuffix
+      // Avoid double separator when path already ends with one.
+      if !_storage.isEmpty && _isSeparator(_storage.last!)
+         && !suffix.isEmpty && _isSeparator(suffix.first!) {
+        suffix.removeFirst()
+      }
+      _storage.append(contentsOf: suffix)
     }
   }
 

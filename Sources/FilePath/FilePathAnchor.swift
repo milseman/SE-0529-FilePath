@@ -53,12 +53,7 @@ extension FilePath.Anchor {
   /// If the drive letter is an unpaired surrogate, `U+FFFD` is returned.
   @available(SwiftStdlib 9999, *)
   public var driveLetter: Unicode.Scalar? {
-    if let parsed = _parseWindowsAnchor() {
-      if let d = parsed.drive {
-        return d._driveLetterScalar
-      }
-    }
-    return nil
+    _parseWindowsAnchor()?.drive?._driveLetterScalar
   }
 
   /// Whether this anchor uses the Windows verbatim-component form.

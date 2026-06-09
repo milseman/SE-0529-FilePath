@@ -301,22 +301,20 @@ extension _SystemString {
     // legal, so `\\?\/:` parses with drive `/`.
     var drive: FilePath.CodeUnit? = nil
     let deviceSlice = self[deviceRange]
-    if deviceSlice.count >= 2 {
+    if deviceSlice.count == 2 {
       let first = deviceSlice[deviceSlice.startIndex]
       let second = deviceSlice[deviceSlice.index(after: deviceSlice.startIndex)]
       if !_isSeparator(first) && second == ._colon {
-        if deviceSlice.count == 2 {
-          drive = first
-          // Check for trailing backslash after C:
-          if lexer.eatBackslash() {
-            // \\?\C:\  or \\.\C:\
-            let newEnd = lexer.current
-            return .device(
-              deviceSigil: sigil,
-              drive: drive,
-              endingAt: newEnd,
-              relativeBegin: newEnd)
-          }
+        drive = first
+        // Check for trailing backslash after C:
+        if lexer.eatBackslash() {
+          // \\?\C:\  or \\.\C:\
+          let newEnd = lexer.current
+          return .device(
+            deviceSigil: sigil,
+            drive: drive,
+            endingAt: newEnd,
+            relativeBegin: newEnd)
         }
       }
     }
@@ -398,10 +396,9 @@ extension _SystemString {
         let first = deviceSlice[deviceSlice.startIndex]
         let second = deviceSlice[deviceSlice.index(after: deviceSlice.startIndex)]
         if !_isSeparator(first) && second == ._colon {
-          // Device drive letter - eat the trailing backslash if present
-          if lexer.eatBackslash() {
-            return lexer.current
-          }
+          // Device drive letter — eat the trailing backslash if present
+          // (both branches return `lexer.current`).
+          _ = lexer.eatBackslash()
           return lexer.current
         }
       }
