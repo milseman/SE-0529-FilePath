@@ -10,25 +10,21 @@
 import Testing
 @testable import FilePath
 
-// AREA 2 — String bridging, including ill-formed Unicode.
-//
-// `String(decoding:)` and `String(validating:)` on FilePath / Anchor / Component
-// were essentially untested, and the U+FFFD path is the most likely Windows-side
-// regression at port time. Expectations are derived from SE-0529 ("Paths and
-// strings", lines 730-777, and the `description` docs at 622-623 / 648-649 /
-// 675-676):
-//   * `String(decoding:)` interprets the bytes as UTF-8 (Linux/Darwin) or UTF-16
-//     (Windows), replacing ill-formed sequences with U+FFFD. Never fails.
-//   * `String(validating:)` returns `nil` when the content is not well-formed.
+// String bridging, including ill-formed Unicode. `String(decoding:)` and
+// `String(validating:)` on FilePath / Anchor / Component were essentially
+// untested, and the U+FFFD path is the most likely Windows-side regression
+// at port time. Expectations from SE-0529 ("Paths and strings", 730-777,
+// and the `description` docs at 622-623 / 648-649 / 675-676):
+//   * `String(decoding:)` — UTF-8 (Linux/Darwin) or UTF-16 (Windows) decode,
+//     replacing ill-formed sequences with U+FFFD. Never fails.
+//   * `String(validating:)` — `nil` when the content is not well-formed.
 //   * `description` equals `String(decoding:)` for the same value.
 //
-// ENCODING NOTE: `FilePath.CodeUnit` and the decode encoding are fixed at
-// compile time — `CChar`/UTF-8 off Windows, `UInt16`/UTF-16 on Windows. So on
-// non-Windows builds the ill-formed cases below use lone UTF-8 bytes (0x80 /
-// 0xFF). The real target for the ill-formed path on a Windows build is an
-// unpaired UTF-16 surrogate; that case is called out where relevant and is
-// intentionally NOT faked here (you cannot manufacture a lone surrogate in
-// `[CChar]`).
+// ENCODING: `FilePath.CodeUnit` and the decode encoding are fixed at compile
+// time — `CChar`/UTF-8 off Windows, `UInt16`/UTF-16 on Windows. So on
+// non-Windows builds the ill-formed cases use lone UTF-8 bytes (0x80 / 0xFF).
+// The Windows-build target is an unpaired UTF-16 surrogate; we don't fake
+// it here because a lone surrogate is not representable in `[CChar]`.
 
 extension AllTests.StringBridgingTests {
 

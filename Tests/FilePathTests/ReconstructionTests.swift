@@ -10,23 +10,20 @@
 import Testing
 @testable import FilePath
 
-// AREA 3 — Reconstruction and the suffix/anchor setters as direct API.
-//
-// These were previously exercised only as the round-trip tail of decomposition
-// (DecompositionTests.runCase). Here they are driven directly with caller-built
-// parts. Expectations are derived from SE-0529:
-//   * "Path reconstruction" (lines 477-517): `init(anchor:_:hasTrailingSeparator:)`
+// Reconstruction and the suffix/anchor setters as direct API. These were
+// previously exercised only as the round-trip tail of decomposition
+// (DecompositionTests.runCase). Here they are driven directly with
+// caller-built parts. Expectations from SE-0529:
+//   * "Path reconstruction" (477-517): `init(anchor:_:hasTrailingSeparator:)`
 //     and the Darwin `init(anchor:_:resourceFork:)`. The reconstructed path
 //     "parses and normalizes exactly as if the equivalent string literal had
 //     been provided."
-//   * "Trailing separators" (lines 400-427): `hasTrailingSeparator` get/set,
+//   * "Trailing separators" (400-427): `hasTrailingSeparator` get/set,
 //     `withTrailingSeparator()`, `withoutTrailingSeparator()`.
-//   * "Resource forks" (lines 438-472): `isResourceFork` get/set,
+//   * "Resource forks" (438-472): `isResourceFork` get/set,
 //     `withResourceFork()`, `withoutResourceFork()`, and the documented
 //     trailing-separator <-> resource-fork swap.
-//   * `anchor` get/set (lines 174-201; examples at 46-55).
-//
-// All bodies go through the TestSupport seam.
+//   * `anchor` get/set (174-201; examples at 46-55).
 
 extension AllTests.ReconstructionTests {
 

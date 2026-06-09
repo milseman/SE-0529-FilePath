@@ -11,42 +11,21 @@ import Testing
 import Foundation
 @testable import FilePath
 
-// ===========================================================================
-// TestSupport — the single indirection seam between these tests and
-//   (a) the test framework, and
-//   (b) compile-time platform selection.
+// TestSupport — the indirection seam between test bodies and (a) the test
+// framework, and (b) compile-time platform selection. At port time only this
+// file is rewritten: the `expect*` helpers forward to StdlibUnittest / XCTest
+// natives, and the platform helpers evaporate (the stdlib build is naturally
+// platform-fixed).
 //
-// This file exists to make the eventual ports MECHANICAL. The tests will be
-// ported to StdlibUnittest (standard library) and XCTest (swift-system); at
-// that point only this file is rewritten to forward to the destination
-// framework. The runtime platform switch has already been folded into
-// compile-time `#if os(...)`: the library exposes `_isWindows` / `_isDarwin`
-// as compile-time constants (FilePathParsing.swift), and the test target
-// carries its own copy of the platform enum plus `_builtPlatform` (below), so
-// a build contains exactly one platform's behavior. The remaining migration
-// stays trivial *iff* no test body talks to swift-testing directly or reaches
-// around the platform seam.
-//
-// PORT NOTE (assertions): The helpers below forward to swift-testing's
-// `#expect` today. Each has a direct analogue in the destination frameworks
-// (StdlibUnittest: `expectEqual` / `expectTrue` / `expectNil` / ...; XCTest:
-// `XCTAssertEqual` / `XCTAssertTrue` / `XCTAssertNil` / ...). At port time only
-// this file is rewritten to forward to the destination framework.
-//   ==> Test bodies MUST NOT call `#expect` (or `Testing.withKnownIssue`)
-//       directly. Use the helpers below.
-//
-// PORT NOTE (platform): `withPlatform` / `withPlatforms` are the ONLY places
-// that consult `_builtPlatform`. There is no runtime platform global anymore:
-// `withPlatform(p)` runs its body only when `p` is the single built platform,
-// and `withPlatforms(p1, p2, …)` runs its body when `_builtPlatform` is in the
-// list. Universal tests need no gate at all (they run on whichever platform
-// is built). Nothing in a test body should select the platform any other way.
-// ===========================================================================
+// Test bodies MUST go through the seam: no direct `#expect` /
+// `Testing.withKnownIssue`, no direct read of `_builtPlatform`. The one
+// in-tree exception is `withCodeUnitsThrowsTypedError` in ValidationTests —
+// the seam has no throwing-assertion helper because the analogues differ
+// sharply across destination frameworks.
 
 // MARK: - Assertion seam
 
-/// Turns a (possibly empty) message string into a swift-testing `Comment?`.
-/// Empty messages become `nil` so they don't add noise to failures.
+/// Empty messages → nil (otherwise swift-testing renders an empty comment).
 private func _msg(_ s: String) -> Comment? {
   s.isEmpty ? nil : "\(s)"
 }
@@ -83,20 +62,15 @@ func expectFalse(
   #expect(!condition, _msg(message()), sourceLocation: sourceLocation)
 }
 
-/// `T` is intentionally unconstrained (no `Equatable`): we only test for the
-/// presence of a value, which keeps the signature expressible in every
-/// destination framework.
+// `T` is unconstrained: nil-comparison on `Optional<T>` doesn't require
+// `Equatable`, and dropping the constraint keeps the signature expressible
+// in every destination framework.
 func expectNil<T>(
   _ value: T?,
   _ message: @autoclosure () -> String = "",
   sourceLocation: SourceLocation = #_sourceLocation
 ) {
-  let isNil: Bool
-  switch value {
-  case .none: isNil = true
-  case .some: isNil = false
-  }
-  #expect(isNil, _msg(message()), sourceLocation: sourceLocation)
+  #expect(value == nil, _msg(message()), sourceLocation: sourceLocation)
 }
 
 func expectNotNil<T>(
@@ -104,44 +78,30 @@ func expectNotNil<T>(
   _ message: @autoclosure () -> String = "",
   sourceLocation: SourceLocation = #_sourceLocation
 ) {
-  let isSome: Bool
-  switch value {
-  case .some: isSome = true
-  case .none: isSome = false
-  }
-  #expect(isSome, _msg(message()), sourceLocation: sourceLocation)
+  #expect(value != nil, _msg(message()), sourceLocation: sourceLocation)
 }
 
-/// Records issues thrown/raised inside `body` as *known* issues rather than
-/// failures. Wraps `Testing.withKnownIssue` and matches the call shape used in
-/// `DecompositionTests` (`expectKnownIssue("note") { ... }`).
-///
-/// PORT NOTE: StdlibUnittest spells this `expectCrashLater`-style helpers and
-/// `XCTExpectFailure` exists on XCTest; the body stays identical, only this
-/// forwarding changes.
+/// Records issues thrown inside `body` as *known* issues rather than failures.
 func expectKnownIssue(
   _ message: String? = nil,
   sourceLocation: SourceLocation = #_sourceLocation,
   _ body: () throws -> Void
 ) {
-  let comment: Comment? = message.map { "\($0)" }
-  Testing.withKnownIssue(comment, sourceLocation: sourceLocation) {
+  Testing.withKnownIssue(
+    message.map { "\($0)" }, sourceLocation: sourceLocation
+  ) {
     try body()
   }
 }
 
 // MARK: - Platform-runner seam
 
-/// The platform enum used to gate platform-specific test bodies. The library
-/// no longer carries a platform type (folded into compile-time predicates);
-/// the test target keeps its own copy so the platform-specific tests can name
-/// the platform they pin. INTERNAL (not private) on purpose: other test files
-/// reference it.
+/// Platform tag for gating tests. Internal so test files can name the
+/// platforms (`.linux` / `.darwin` / `.windows`); the library itself uses
+/// compile-time predicates and doesn't carry a type.
 enum _Platform: Sendable { case linux, darwin, windows }
 
-/// The single platform this test target was built for, selected at compile
-/// time. The test-side mirror of the library's `_isWindows` / `_isDarwin`
-/// predicates.
+/// The single platform this target was built for, selected at compile time.
 let _builtPlatform: _Platform = {
   #if os(Windows)
   .windows
@@ -152,9 +112,8 @@ let _builtPlatform: _Platform = {
   #endif
 }()
 
-/// Runs `body` only when `p` is the platform this target was built for;
-/// otherwise does nothing. (A non-built-platform body is inert — the test still
-/// runs and passes, it just makes no assertions.)
+/// Runs `body` only when `p` is the built platform. Other-platform calls are
+/// inert — the test still runs and passes, it just makes no assertions.
 func withPlatform(
   _ p: _Platform,
   _ body: () throws -> Void
@@ -163,10 +122,9 @@ func withPlatform(
   try body()
 }
 
-/// Runs `body` when the built platform is one of `ps`; otherwise does nothing.
-/// Use for tests that are valid on more than one platform but not all — the
-/// canonical case is "any unix" via `withPlatforms(.linux, .darwin)`. For tests
-/// valid on every platform, omit the gate entirely.
+/// Runs `body` when the built platform is one of `ps`. Canonical case:
+/// `withPlatforms(.linux, .darwin)` for "any unix". Tests valid on every
+/// platform should carry no gate at all.
 func withPlatforms(
   _ ps: _Platform...,
   body: () throws -> Void
@@ -177,29 +135,15 @@ func withPlatforms(
 
 // MARK: - Universal path literals
 
-private var universalRootDescription: String { _isWindows ? "\\" : "/" }
-
-/// Translates a path string written with `/` as the canonical separator into
-/// the built platform's spelling, so that platform-INDEPENDENT tests can be
-/// written once and run unchanged everywhere. On a Windows build,
-/// `universal("/usr/local/bin")` returns `\usr\local\bin`; elsewhere it returns
-/// the input unchanged. Use it to build expected strings:
+/// Translates a `/`-form path string into the build's separator spelling, so
+/// platform-INDEPENDENT tests can share expected strings:
 ///
 ///     expectEqual(path.description, universal("/usr/local/bin"))
-///     expectEqual(path.anchor?.description, universal("/"))
 ///
-/// This is ONLY valid for paths that are universal modulo the separator byte:
-/// relative paths and plain-root paths whose only platform-varying element is
-/// the separator. It is NOT for platform-specific anchor forms (Windows drive
-/// `C:`, UNC `\\server\share`, verbatim `\\?\…`, Darwin magic anchors
-/// `/.vol/…`, `/.nofollow/…`, `/.resolve/…`), which render in ways a separator
-/// swap cannot express; assert those with exact strings in a platform-specific
-/// test.
-///
-/// Traps if the literal is not universal: if it contains a backslash (the
-/// author hand-spelled a platform separator), or if it parses to a
-/// non-plain-root anchor. A trap means the literal was written for the wrong
-/// helper, not that the code under test is wrong.
+/// Valid only for paths universal modulo the separator byte: relative paths
+/// and plain-root paths. Not for platform-specific anchors (`C:`, UNC, `\\?\…`,
+/// `/.vol/…`, `/.nofollow/…`, `/.resolve/…`) — those need a platform-specific
+/// test. Traps on backslashes in the input or non-plain-root anchors.
 func universal(_ canonicalSlashForm: String) -> String {
   precondition(
     !canonicalSlashForm.contains("\\"),
@@ -208,11 +152,12 @@ func universal(_ canonicalSlashForm: String) -> String {
     + "test: \(canonicalSlashForm)")
   let parsed = FilePath(canonicalSlashForm)
   if let anchor = parsed?.anchor {
+    let basicRoot: String = _isWindows ? "\\" : "/"
     precondition(
-      anchor.description == universalRootDescription,
+      anchor.description == basicRoot,
       "universal(): literal has a platform-specific anchor "
-      + "(\(anchor.description)); it is not universal modulo separator. Use an "
-      + "exact string in a platform-specific test: \(canonicalSlashForm)")
+      + "(\(anchor.description)); use an exact string in a platform-specific "
+      + "test: \(canonicalSlashForm)")
   }
   return _isWindows
     ? canonicalSlashForm.replacingOccurrences(of: "/", with: "\\")
@@ -221,12 +166,10 @@ func universal(_ canonicalSlashForm: String) -> String {
 
 // MARK: - Windows-only API shims
 //
-// `driveLetter` and `isVerbatimComponent` on `FilePath.Anchor` are gated
-// under `#if os(Windows)` in the source per the proposal. Test bodies
-// inside `withPlatform(.windows)` blocks must still type-check on
-// non-Windows builds (where they run inert), so these shims expose the
-// properties on every build — returning the real value on Windows and
-// a benign default elsewhere.
+// `driveLetter` and `isVerbatimComponent` are gated under `#if os(Windows)`
+// per the proposal. These shims expose them on every build (real value on
+// Windows, benign default elsewhere) so test bodies inside
+// `withPlatform(.windows)` blocks type-check on non-Windows builds.
 
 extension FilePath.Anchor {
   var _driveLetter: Unicode.Scalar? {

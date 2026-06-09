@@ -12,10 +12,6 @@ import Testing
 
 extension AllTests.DecompositionTests {
 
-  // Migrated onto the TestSupport seam: assertions go through the `expect*`
-  // helpers, the platform is set via `withPlatform`, and the per-case known
-  // issue uses `expectKnownIssue`. Behavior is identical to the prior
-  // `#expect`/`withKnownIssue`/direct-global version.
   func runCase(_ tc: PathTestCase, platform: _Platform) {
     withPlatform(platform) {
       let expected: Expected

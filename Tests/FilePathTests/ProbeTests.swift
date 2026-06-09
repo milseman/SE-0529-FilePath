@@ -10,15 +10,12 @@
 import Testing
 @testable import FilePath
 
-// Edge-case decomposition checks: each `@Test` below pins the decomposition
-// of a degenerate / boundary input that the table-driven `pathTestCases`
-// doesn't cover. Tests are grouped by the parser feature they exercise
-// (Darwin anchor reparse, bare resolve/vol forms, Windows multi-backslash
-// roots, Windows empty-device sigils, prefix near-misses).
-//
+// Edge-case decomposition checks: each `@Test` pins the decomposition of a
+// degenerate / boundary input that the table-driven `pathTestCases` doesn't
+// cover (Darwin anchor reparse, bare resolve/vol forms, Windows
+// multi-backslash roots, Windows empty-device sigils, prefix near-misses).
 // Nested in `AllTests.DecompositionTests` so they share the same
-// `@Suite(.serialized)` umbrella as the table-driven cases. Assertions and
-// platform selection go through the TestSupport seam.
+// `@Suite(.serialized)` umbrella as the table-driven cases.
 
 extension AllTests.DecompositionTests {
 

@@ -10,16 +10,6 @@
 import Testing
 @testable import FilePath
 
-// Migrated onto the TestSupport seam: assertions go through the `expect*`
-// helpers and the platform is set via `withPlatform`. Tests that never set a
-// platform (NUL/empty rejection, typed-error throwing) are platform-independent
-// and are left unwrapped, exactly as before.
-//
-// SEAM EXCEPTION: `withCodeUnitsThrowsTypedError` keeps `#expect(throws:)`. The
-// seam has no throwing-assertion helper (it was not in scope and its analogue
-// differs sharply across StdlibUnittest / XCTest), so per "leave awkward spots
-// and note them" it is intentionally not migrated.
-
 extension AllTests.ValidationTests {
 
   // MARK: - Helpers
@@ -620,7 +610,8 @@ extension AllTests.ValidationTests {
   func withCodeUnitsThrowsTypedError() {
     struct TestError: Error {}
     let path: FilePath = "/foo"
-    // SEAM EXCEPTION (see file header): no throwing-assertion helper in the seam.
+    // SEAM EXCEPTION: no throwing-assertion helper in the seam (analogues
+    // differ sharply across StdlibUnittest / XCTest).
     #expect(throws: TestError.self) {
       try path.withCodeUnits {
         (_: UnsafePointer<FilePath.CodeUnit>, _: Int) throws(TestError) -> Int in

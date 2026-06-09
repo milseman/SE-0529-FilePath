@@ -10,26 +10,17 @@
 import Testing
 @testable import FilePath
 
-// AREA 1 — Equality, hashing, ordering.
-//
-// FilePath is pitched as a Dictionary key and as sortable, so this is
-// load-bearing. Every expected value here is derived from SE-0529, not from
-// running the implementation:
-//   * Equality: a path equals another when they have identical anchors, their
-//     component views yield identical sequences, and they agree on the suffix
-//     (trailing separator / resource fork). Equality is purely syntactic: two
-//     paths are equal precisely when they print the same. (Proposal: "Printing,
-//     comparing, and hashing"; examples at lines 701-718.)
+// Equality, hashing, ordering. FilePath is pitched as a Dictionary key and as
+// sortable, so this is load-bearing. Every expected value is derived from
+// SE-0529, not from running the implementation:
+//   * Equality: two paths are equal iff they have identical anchors, identical
+//     component sequences, and the same suffix (trailing separator / resource
+//     fork). Equality is purely syntactic — equal precisely when they print
+//     the same. (Proposal "Printing, comparing, and hashing"; examples 701-718.)
 //   * Darwin anchor canonicalization: `/.resolve/1/` => `/.nofollow/`, and
-//     `/.vol/NNNN/2/` => `/.vol/NNNN/@/`. (Proposal: "Darwin anchor
-//     canonicalization", lines 220-223; decomposition table lines 546, 549.)
-//   * Ordering: lexicographic over the normalized byte representation — anchor
-//     bytes, then component bytes, then suffix as the final tiebreaker.
-//     (Proposal line 724.)
-//
-// All bodies go through the TestSupport seam: assertions through `expect*`,
-// platform selection through `withPlatform`. Universal tests (those that
-// would behave the same on every platform) carry no platform gate.
+//     `/.vol/NNNN/2/` => `/.vol/NNNN/@/`. (Proposal 220-223; table 546, 549.)
+//   * Ordering: lexicographic over the normalized byte representation —
+//     anchor, then components, then suffix as final tiebreaker. (Proposal 724.)
 
 extension AllTests.EqualityTests {
 
