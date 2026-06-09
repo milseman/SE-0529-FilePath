@@ -40,22 +40,22 @@ extension AllTests.ReconstructionTests {
 
   @Test
   func reconstructRelativeNilAnchor() {
-    withPlatform(.linux) {
-      let p = FilePath(anchor: nil, comps("foo", "bar"))
-      expectEqual(p.description, "foo/bar", "relative reconstruction")
-      expectNil(p.anchor, "nil anchor stays relative")
-      expectEqual(p.components.map(\.description), ["foo", "bar"])
-    }
+    let p = FilePath(anchor: nil, comps("foo", "bar"))
+    expectEqual(p.description, universal("foo/bar"), "relative reconstruction")
+    expectNil(p.anchor, "nil anchor stays relative")
+    expectEqual(p.components.map(\.description), ["foo", "bar"])
   }
 
   @Test
-  func reconstructLinuxRoot() {
-    withPlatform(.linux) {
-      let p = FilePath(anchor: FilePath.Anchor("/"), comps("foo", "bar"))
-      expectEqual(p.description, "/foo/bar", "linux root reconstruction")
-      expectTrue(p.anchor?.description == "/", "anchor is /")
-      expectEqual(p.components.map(\.description), ["foo", "bar"])
-    }
+  func reconstructBasicRoot() {
+    // The basic-root anchor: `/` on unix, `\` on Windows after slash
+    // conversion. Use `universal()` to express the platform-varying spelling.
+    let p = FilePath(anchor: FilePath.Anchor("/"), comps("foo", "bar"))
+    expectEqual(p.description, universal("/foo/bar"),
+      "basic-root reconstruction")
+    expectEqual(p.anchor?.description, universal("/"),
+      "anchor is the basic root")
+    expectEqual(p.components.map(\.description), ["foo", "bar"])
   }
 
   @Test
@@ -92,26 +92,25 @@ extension AllTests.ReconstructionTests {
 
   @Test
   func reconstructTrailingSeparatorFlag() {
-    withPlatform(.linux) {
-      let withSep = FilePath(
-        anchor: FilePath.Anchor("/"), comps("foo"), hasTrailingSeparator: true)
-      expectEqual(withSep.description, "/foo/", "hasTrailingSeparator: true")
-      expectTrue(withSep.hasTrailingSeparator, "trailing separator present")
+    let withSep = FilePath(
+      anchor: FilePath.Anchor("/"), comps("foo"), hasTrailingSeparator: true)
+    expectEqual(withSep.description, universal("/foo/"),
+      "hasTrailingSeparator: true")
+    expectTrue(withSep.hasTrailingSeparator, "trailing separator present")
 
-      let noSep = FilePath(
-        anchor: FilePath.Anchor("/"), comps("foo"), hasTrailingSeparator: false)
-      expectEqual(noSep.description, "/foo", "hasTrailingSeparator: false")
-      expectFalse(noSep.hasTrailingSeparator, "no trailing separator")
-    }
+    let noSep = FilePath(
+      anchor: FilePath.Anchor("/"), comps("foo"), hasTrailingSeparator: false)
+    expectEqual(noSep.description, universal("/foo"),
+      "hasTrailingSeparator: false")
+    expectFalse(noSep.hasTrailingSeparator, "no trailing separator")
   }
 
   @Test
   func reconstructEmptyComponentsWithAnchor() {
-    withPlatform(.linux) {
-      let root = FilePath(anchor: FilePath.Anchor("/"), [] as [FilePath.Component])
-      expectEqual(root.description, "/", "anchor-only Linux root")
-      expectTrue(root.components.isEmpty, "no components")
-    }
+    let root = FilePath(anchor: FilePath.Anchor("/"), [] as [FilePath.Component])
+    expectEqual(root.description, universal("/"), "anchor-only basic root")
+    expectTrue(root.components.isEmpty, "no components")
+
     withPlatform(.windows) {
       let drive = FilePath(anchor: FilePath.Anchor(#"C:\"#), [] as [FilePath.Component])
       expectEqual(drive.description, #"C:\"#, "anchor-only C:\\")
@@ -174,48 +173,44 @@ extension AllTests.ReconstructionTests {
 
   @Test
   func trailingSeparatorSetter() {
-    withPlatform(.linux) {
-      var p = FilePath("/foo")
-      expectFalse(p.hasTrailingSeparator, "starts without")
+    var p = FilePath("/foo")
+    expectFalse(p.hasTrailingSeparator, "starts without")
 
-      p.hasTrailingSeparator = true
-      expectEqual(p.description, "/foo/", "set true adds separator")
+    p.hasTrailingSeparator = true
+    expectEqual(p.description, universal("/foo/"), "set true adds separator")
 
-      p.hasTrailingSeparator = true  // no-op
-      expectEqual(p.description, "/foo/", "set true again is a no-op")
+    p.hasTrailingSeparator = true  // no-op
+    expectEqual(p.description, universal("/foo/"), "set true again is a no-op")
 
-      p.hasTrailingSeparator = false
-      expectEqual(p.description, "/foo", "set false removes separator")
+    p.hasTrailingSeparator = false
+    expectEqual(p.description, universal("/foo"), "set false removes separator")
 
-      p.hasTrailingSeparator = false  // no-op
-      expectEqual(p.description, "/foo", "set false again is a no-op")
-    }
+    p.hasTrailingSeparator = false  // no-op
+    expectEqual(p.description, universal("/foo"), "set false again is a no-op")
   }
 
   @Test
   func withTrailingSeparatorMethods() {
-    withPlatform(.linux) {
-      expectEqual(FilePath("/foo").withTrailingSeparator().description, "/foo/",
-        "adds separator")
-      expectEqual(FilePath("/foo/").withTrailingSeparator().description, "/foo/",
-        "no-op when already present")
-      expectEqual(FilePath("/foo/").withoutTrailingSeparator().description, "/foo",
-        "removes separator")
-      expectEqual(FilePath("/foo").withoutTrailingSeparator().description, "/foo",
-        "no-op when absent")
-    }
+    expectEqual(FilePath("/foo").withTrailingSeparator().description,
+      universal("/foo/"), "adds separator")
+    expectEqual(FilePath("/foo/").withTrailingSeparator().description,
+      universal("/foo/"), "no-op when already present")
+    expectEqual(FilePath("/foo/").withoutTrailingSeparator().description,
+      universal("/foo"), "removes separator")
+    expectEqual(FilePath("/foo").withoutTrailingSeparator().description,
+      universal("/foo"), "no-op when absent")
   }
 
   @Test
   func trailingSeparatorAnchorOnly() {
-    withPlatform(.linux) {
-      // `/`'s separator is structural (part of the anchor), so it is NOT a
-      // trailing separator and cannot be "added".
-      let root = FilePath("/")
-      expectFalse(root.hasTrailingSeparator, "/ has no trailing separator")
-      expectEqual(root.withTrailingSeparator().description, "/",
-        "withTrailingSeparator on / is a no-op")
-    }
+    // The basic root's separator is structural (part of the anchor), so it is
+    // NOT a trailing separator and cannot be "added".
+    let root = FilePath("/")
+    expectFalse(root.hasTrailingSeparator,
+      "basic root has no trailing separator")
+    expectEqual(root.withTrailingSeparator().description, universal("/"),
+      "withTrailingSeparator on basic root is a no-op")
+
     withPlatform(.windows) {
       // \\server\share is a complete root; adding a separator yields a real
       // trailing separator (proposal lines 561, 573).
@@ -306,31 +301,33 @@ extension AllTests.ReconstructionTests {
 
   @Test
   func anchorSetToNil() {
-    withPlatform(.linux) {
-      var p = FilePath("/foo/bar")
-      p.anchor = nil
-      expectEqual(p.description, "foo/bar", "anchor removed -> relative")
-      expectNil(p.anchor, "anchor is nil")
-      expectFalse(p.isAbsolute, "now relative")
-    }
+    var p = FilePath("/foo/bar")
+    p.anchor = nil
+    expectEqual(p.description, universal("foo/bar"),
+      "anchor removed -> relative")
+    expectNil(p.anchor, "anchor is nil")
+    expectFalse(p.isAbsolute, "now relative")
   }
 
   @Test
   func anchorSetOntoRelative() {
-    withPlatform(.linux) {
-      var p = FilePath("foo/bar")
-      expectNil(p.anchor, "starts relative")
-      p.anchor = FilePath.Anchor("/")
-      expectEqual(p.description, "/foo/bar", "anchor added")
+    var p = FilePath("foo/bar")
+    expectNil(p.anchor, "starts relative")
+    p.anchor = FilePath.Anchor("/")
+    expectEqual(p.description, universal("/foo/bar"), "anchor added")
+    // The basic root is fully qualified on unix but is the current-drive root
+    // (not absolute) on Windows. Pin only the unix half here; the Windows
+    // drive-relative case is covered below.
+    withPlatforms(.linux, .darwin) {
       expectTrue(p.isAbsolute, "now absolute")
     }
     withPlatform(.windows) {
       // Drive-relative anchor onto a relative path: no gap separator inserted.
-      var p = FilePath(#"foo\bar"#)
-      expectNil(p.anchor, "starts relative")
-      p.anchor = FilePath.Anchor("C:")
-      expectEqual(p.description, #"C:foo\bar"#, "C: prepended without a gap separator")
-      expectFalse(p.isAbsolute, "drive-relative is not absolute")
+      var q = FilePath(#"foo\bar"#)
+      expectNil(q.anchor, "starts relative")
+      q.anchor = FilePath.Anchor("C:")
+      expectEqual(q.description, #"C:foo\bar"#, "C: prepended without a gap separator")
+      expectFalse(q.isAbsolute, "drive-relative is not absolute")
     }
   }
 }

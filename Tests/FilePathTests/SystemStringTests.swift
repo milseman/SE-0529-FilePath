@@ -17,8 +17,9 @@ import Testing
 //
 // These tests exercise the RangeReplaceableCollection surface
 // (replaceSubrange, append, insert, remove) and confirm the null
-// invariant is preserved across every flavor of mutation. Independent
-// of REVIEW_ONLY_platform, so a separate top-level suite.
+// invariant is preserved across every flavor of mutation. Platform-
+// independent — never goes through the platform seam — hence a separate
+// top-level suite.
 
 @Suite
 struct SystemStringTests {

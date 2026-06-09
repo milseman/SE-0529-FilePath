@@ -22,13 +22,13 @@ import Testing
 //   * `String(validating:)` returns `nil` when the content is not well-formed.
 //   * `description` equals `String(decoding:)` for the same value.
 //
-// ENCODING NOTE: `FilePath.CodeUnit` and the decode encoding are fixed at COMPILE
-// time (`CChar`/UTF-8 off Windows, `UInt16`/UTF-16 on Windows) — REVIEW_ONLY only
-// switches *parsing*, not the storage element type. So on this build the
-// ill-formed cases below use lone UTF-8 bytes (0x80 / 0xFF). The real target for
-// the ill-formed path on a Windows build is an unpaired UTF-16 surrogate; that
-// case is called out where relevant and is intentionally NOT faked here (you
-// cannot manufacture a lone surrogate in `[CChar]`).
+// ENCODING NOTE: `FilePath.CodeUnit` and the decode encoding are fixed at
+// compile time — `CChar`/UTF-8 off Windows, `UInt16`/UTF-16 on Windows. So on
+// non-Windows builds the ill-formed cases below use lone UTF-8 bytes (0x80 /
+// 0xFF). The real target for the ill-formed path on a Windows build is an
+// unpaired UTF-16 surrogate; that case is called out where relevant and is
+// intentionally NOT faked here (you cannot manufacture a lone surrogate in
+// `[CChar]`).
 
 extension AllTests.StringBridgingTests {
 
@@ -50,7 +50,9 @@ extension AllTests.StringBridgingTests {
   // recover the original text exactly.
   @Test
   func wellFormedRoundTripFilePath() {
-    withPlatform(.linux) {
+    // Inputs use `/`-form paths whose stored bytes (and decoded String)
+    // differ on Windows; restrict to unix.
+    withPlatforms(.linux, .darwin) {
       for s in ["/foo/bar", "foo/bar", "/usr/local/bin", "/café/naïve", "a/b/c"] {
         let p = FilePath(s)!
         expectEqual(String(decoding: p), s,
@@ -65,7 +67,7 @@ extension AllTests.StringBridgingTests {
 
   @Test
   func wellFormedRoundTripAnchor() {
-    withPlatform(.linux) {
+    withPlatforms(.linux, .darwin) {
       let a = FilePath.Anchor("/")
       expectEqual(String(decoding: a), "/", "decoding anchor /")
       expectTrue(String(validating: a) == "/", "validating anchor /")
@@ -85,33 +87,31 @@ extension AllTests.StringBridgingTests {
 
   @Test
   func wellFormedRoundTripComponent() {
-    withPlatform(.linux) {
-      for name in ["foo", "file.txt", "café", ".."] {
-        let c = FilePath.Component(name)!
-        expectEqual(String(decoding: c), name,
-          "decoding component \(name.debugDescription)")
-        expectTrue(String(validating: c) == name,
-          "validating component \(name.debugDescription)")
-      }
+    // Component names have no separator; round-trips are universal.
+    for name in ["foo", "file.txt", "café", ".."] {
+      let c = FilePath.Component(name)!
+      expectEqual(String(decoding: c), name,
+        "decoding component \(name.debugDescription)")
+      expectTrue(String(validating: c) == name,
+        "validating component \(name.debugDescription)")
     }
   }
 
   // MARK: - description == String(decoding:)
 
   // The proposal specifies `description` as `String(decoding:)` of the same
-  // value (lossy, U+FFFD-correcting). Pin that identity on all three types.
+  // value (lossy, U+FFFD-correcting). Pin that identity on all three types —
+  // it holds whatever the platform-specific stored bytes look like.
   @Test
   func descriptionEqualsDecoding() {
-    withPlatform(.linux) {
-      let p = FilePath("/foo/bar")
-      expectEqual(p.description, String(decoding: p), "FilePath description")
+    let p = FilePath("/foo/bar")
+    expectEqual(p.description, String(decoding: p), "FilePath description")
 
-      let a = FilePath.Anchor("/")
-      expectEqual(a.description, String(decoding: a), "Anchor description")
+    let a = FilePath.Anchor("/")
+    expectEqual(a.description, String(decoding: a), "Anchor description")
 
-      let c = FilePath.Component("foo")
-      expectEqual(c.description, String(decoding: c), "Component description")
-    }
+    let c = FilePath.Component("foo")
+    expectEqual(c.description, String(decoding: c), "Component description")
   }
 
 #if !os(Windows)
@@ -138,41 +138,37 @@ extension AllTests.StringBridgingTests {
 
   @Test
   func illFormedFilePath() {
-    withPlatform(.linux) {
-      let p = filePath(fromCodeUnits: illFormedUTF8Bytes())!
-      // validating: ill-formed => nil
-      expectNil(String(validating: p),
-        "String(validating:) is nil for ill-formed FilePath")
-      // decoding: lossy => contains U+FFFD, never fails
-      expectTrue(String(decoding: p).unicodeScalars.contains("\u{FFFD}"),
-        "String(decoding:) yields U+FFFD for ill-formed FilePath")
-      // description tracks decoding even when ill-formed
-      expectEqual(p.description, String(decoding: p),
-        "description == decoding (ill-formed)")
-    }
+    let p = filePath(fromCodeUnits: illFormedUTF8Bytes())!
+    // validating: ill-formed => nil
+    expectNil(String(validating: p),
+      "String(validating:) is nil for ill-formed FilePath")
+    // decoding: lossy => contains U+FFFD, never fails
+    expectTrue(String(decoding: p).unicodeScalars.contains("\u{FFFD}"),
+      "String(decoding:) yields U+FFFD for ill-formed FilePath")
+    // description tracks decoding even when ill-formed
+    expectEqual(p.description, String(decoding: p),
+      "description == decoding (ill-formed)")
   }
 
   @Test
   func illFormedComponent() {
-    withPlatform(.linux) {
-      let c = component(fromCodeUnits: illFormedUTF8Bytes())!
+    let c = component(fromCodeUnits: illFormedUTF8Bytes())!
 
-      // decoding: lossy => U+FFFD. This matches the proposal and the impl.
-      expectTrue(String(decoding: c).unicodeScalars.contains("\u{FFFD}"),
-        "String(decoding:) yields U+FFFD for ill-formed Component")
+    // decoding: lossy => U+FFFD. This matches the proposal and the impl.
+    expectTrue(String(decoding: c).unicodeScalars.contains("\u{FFFD}"),
+      "String(decoding:) yields U+FFFD for ill-formed Component")
 
-      // SE-0529 (lines 771-776): String?(validating: component) returns nil when
-      // the content is not well-formed Unicode. Fixed in StringBridging.swift to
-      // use the decode/re-encode/compare round-trip (matching the FilePath
-      // overload) instead of the lossy U+FFFD description.
-      //
-      // The Anchor overload (lines 757-762) received the identical fix for
-      // symmetry but is not directly test-reachable: Anchor has no public
-      // codeUnits initializer to smuggle ill-formed bytes into the (otherwise
-      // structural/ASCII) anchor region.
-      expectNil(String(validating: c),
-        "String(validating:) should be nil for ill-formed Component")
-    }
+    // SE-0529 (lines 771-776): String?(validating: component) returns nil when
+    // the content is not well-formed Unicode. Fixed in StringBridging.swift to
+    // use the decode/re-encode/compare round-trip (matching the FilePath
+    // overload) instead of the lossy U+FFFD description.
+    //
+    // The Anchor overload (lines 757-762) received the identical fix for
+    // symmetry but is not directly test-reachable: Anchor has no public
+    // codeUnits initializer to smuggle ill-formed bytes into the (otherwise
+    // structural/ASCII) anchor region.
+    expectNil(String(validating: c),
+      "String(validating:) should be nil for ill-formed Component")
   }
 #endif
 }

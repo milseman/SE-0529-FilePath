@@ -69,20 +69,20 @@ extension AllTests.ValidationTests {
 
   @Test
   func filePathStringLiteralWorks() {
-    withPlatform(.linux) {
-      let p: FilePath = "/usr/local/bin"
-      expectEqual(p.description, "/usr/local/bin")
+    let p: FilePath = "/usr/local/bin"
+    expectEqual(p.description, universal("/usr/local/bin"))
 
-      let empty: FilePath = ""
-      expectTrue(empty.isEmpty)
-    }
+    let empty: FilePath = ""
+    expectTrue(empty.isEmpty)
   }
 
   // MARK: - FilePath.init?(codeUnits:) and round-trip via withCodeUnits
 
   @Test
   func filePathCodeUnitsRejectsNUL() {
-    withPlatform(.linux) {
+    // The `codeUnits(_:)` helper produces `[CChar]` (FilePath.CodeUnit only on
+    // non-Windows builds), so this body is unix-only.
+    withPlatforms(.linux, .darwin) {
       expectTrue(filePathFromCodeUnits(codeUnits("/foo"))?.description == "/foo")
       expectNil(filePathFromCodeUnits(codeUnits("f\0o")))
       expectNil(filePathFromCodeUnits(codeUnits("\0")))
@@ -92,42 +92,36 @@ extension AllTests.ValidationTests {
 
   @Test
   func filePathCodeUnitsEmpty() {
-    withPlatform(.linux) {
-      let emptyPath = filePathFromCodeUnits([])
-      expectNotNil(emptyPath)
-      expectTrue(emptyPath?.isEmpty == true)
-    }
+    let emptyPath = filePathFromCodeUnits([])
+    expectNotNil(emptyPath)
+    expectTrue(emptyPath?.isEmpty == true)
   }
 
   @Test
   func filePathCodeUnitRoundTrip() {
-    withPlatform(.linux) {
-      for input in ["/foo/bar", "", ".", "foo/bar", "/usr/local/bin", "hello"] {
-        let s: String = input
-        let path = FilePath(s)!
-        let extracted = path.withCodeUnits { ptr, count in
-          Array(UnsafeBufferPointer(start: ptr, count: count))
-        }
-        let roundTripped = filePathFromCodeUnits(extracted)
-        expectTrue(roundTripped == path,
-          "Code unit round-trip failed for \(input.debugDescription)")
+    for input in ["/foo/bar", "", ".", "foo/bar", "/usr/local/bin", "hello"] {
+      let s: String = input
+      let path = FilePath(s)!
+      let extracted = path.withCodeUnits { ptr, count in
+        Array(UnsafeBufferPointer(start: ptr, count: count))
       }
+      let roundTripped = filePathFromCodeUnits(extracted)
+      expectTrue(roundTripped == path,
+        "Code unit round-trip failed for \(input.debugDescription)")
     }
   }
 
   @Test
   func filePathCodeUnitRoundTripNonASCII() {
-    withPlatform(.linux) {
-      for input in ["/café/naïve", "/あ/🧟‍♀️", "Ångström"] {
-        let s: String = input
-        let path = FilePath(s)!
-        let extracted = path.withCodeUnits { ptr, count in
-          Array(UnsafeBufferPointer(start: ptr, count: count))
-        }
-        let roundTripped = filePathFromCodeUnits(extracted)
-        expectTrue(roundTripped == path,
-          "Non-ASCII code unit round-trip failed for \(input.debugDescription)")
+    for input in ["/café/naïve", "/あ/🧟‍♀️", "Ångström"] {
+      let s: String = input
+      let path = FilePath(s)!
+      let extracted = path.withCodeUnits { ptr, count in
+        Array(UnsafeBufferPointer(start: ptr, count: count))
       }
+      let roundTripped = filePathFromCodeUnits(extracted)
+      expectTrue(roundTripped == path,
+        "Non-ASCII code unit round-trip failed for \(input.debugDescription)")
     }
   }
 
@@ -148,7 +142,7 @@ extension AllTests.ValidationTests {
 
   @Test
   func componentInitRejectsSeparator() {
-    withPlatform(.linux) {
+    withPlatforms(.linux, .darwin) {
       let fwdSlash: String = "foo/bar"
       expectNil(FilePath.Component(fwdSlash))
       let justSlash: String = "/"
@@ -156,9 +150,9 @@ extension AllTests.ValidationTests {
       let trailingSlash: String = "a/"
       expectNil(FilePath.Component(trailingSlash))
 
-      // Backslash is legal in filenames on Linux
-      let bsOnLinux: String = #"foo\bar"#
-      let bs = FilePath.Component(bsOnLinux)
+      // Backslash is legal in filenames on unix.
+      let bsOnUnix: String = #"foo\bar"#
+      let bs = FilePath.Component(bsOnUnix)
       expectNotNil(bs)
       expectTrue(bs?.description == #"foo\bar"#)
     }
@@ -181,22 +175,20 @@ extension AllTests.ValidationTests {
 
   @Test
   func componentInitAcceptsValid() {
-    withPlatform(.linux) {
-      let hello: String = "hello"
-      let c = FilePath.Component(hello)
-      expectNotNil(c)
-      expectTrue(c?.description == "hello")
+    let hello: String = "hello"
+    let c = FilePath.Component(hello)
+    expectNotNil(c)
+    expectTrue(c?.description == "hello")
 
-      let dotStr: String = "."
-      let dot = FilePath.Component(dotStr)
-      expectNotNil(dot)
-      expectTrue(dot?.kind == .currentDirectory)
+    let dotStr: String = "."
+    let dot = FilePath.Component(dotStr)
+    expectNotNil(dot)
+    expectTrue(dot?.kind == .currentDirectory)
 
-      let dotdotStr: String = ".."
-      let dotdot = FilePath.Component(dotdotStr)
-      expectNotNil(dotdot)
-      expectTrue(dotdot?.kind == .parentDirectory)
-    }
+    let dotdotStr: String = ".."
+    let dotdot = FilePath.Component(dotdotStr)
+    expectNotNil(dotdot)
+    expectTrue(dotdot?.kind == .parentDirectory)
   }
 
   // MARK: - Component.init?(codeUnits:)
@@ -216,9 +208,10 @@ extension AllTests.ValidationTests {
 
   @Test
   func componentCodeUnitsRejectsSeparator() {
-    withPlatform(.linux) {
+    // The `codeUnits(_:)` helper produces `[CChar]`, so this body is unix-only.
+    withPlatforms(.linux, .darwin) {
       expectNil(componentFromCodeUnits(codeUnits("foo/bar")))
-      // Backslash is legal on Linux
+      // Backslash is legal in filenames on unix.
       expectNotNil(componentFromCodeUnits(codeUnits(#"foo\bar"#)))
     }
 
@@ -230,18 +223,16 @@ extension AllTests.ValidationTests {
 
   @Test
   func componentCodeUnitRoundTrip() {
-    withPlatform(.linux) {
-      for name in ["hello", ".", "..", "file.txt", "café", "🧟‍♀️"] {
-        let s: String = name
-        let comp = FilePath.Component(s)!
-        let span = comp.codeUnits
-        var extracted = [FilePath.CodeUnit]()
-        extracted.reserveCapacity(span.count)
-        for i in span.indices { extracted.append(span[i]) }
-        let roundTripped = componentFromCodeUnits(extracted)
-        expectTrue(roundTripped == comp,
-          "Component code unit round-trip failed for \(name.debugDescription)")
-      }
+    for name in ["hello", ".", "..", "file.txt", "café", "🧟‍♀️"] {
+      let s: String = name
+      let comp = FilePath.Component(s)!
+      let span = comp.codeUnits
+      var extracted = [FilePath.CodeUnit]()
+      extracted.reserveCapacity(span.count)
+      for i in span.indices { extracted.append(span[i]) }
+      let roundTripped = componentFromCodeUnits(extracted)
+      expectTrue(roundTripped == comp,
+        "Component code unit round-trip failed for \(name.debugDescription)")
     }
   }
 
@@ -262,7 +253,8 @@ extension AllTests.ValidationTests {
     func bytes(_ s: String) -> [FilePath.CodeUnit] {
       Array(s.utf8).map { CChar(bitPattern: $0) }
     }
-    withPlatform(.linux) {
+    // The local `bytes(_:)` helper produces `[CChar]`, unix-only.
+    withPlatforms(.linux, .darwin) {
       // Bind to `String` locals so the failable `init?(_:)` is selected
       // (a bare string literal binds the non-failable
       // `ExpressibleByStringLiteral` init, which is not optional).
@@ -313,20 +305,21 @@ extension AllTests.ValidationTests {
     }
   }
 
-  // MARK: - Anchor.init?(_: String) NUL rejection (all platforms)
+  // MARK: - Anchor.init?(_: String) NUL rejection
 
   @Test
-  func anchorInitRejectsNULLinux() {
-    withPlatform(.linux) {
-      let good: String = "/"
-      expectNotNil(FilePath.Anchor(good))
+  func anchorInitRejectsNULOnBasicRoot() {
+    // Basic-root NUL handling. Universal modulo separator: on Windows
+    // the slash-form input still parses (slash is converted), and NUL
+    // is rejected before normalization regardless.
+    let good: String = "/"
+    expectNotNil(FilePath.Anchor(good))
 
-      let nul1: String = "/\0"
-      expectNil(FilePath.Anchor(nul1))
+    let nul1: String = "/\0"
+    expectNil(FilePath.Anchor(nul1))
 
-      let nul2: String = "\0/"
-      expectNil(FilePath.Anchor(nul2))
-    }
+    let nul2: String = "\0/"
+    expectNil(FilePath.Anchor(nul2))
   }
 
   @Test
@@ -415,16 +408,18 @@ extension AllTests.ValidationTests {
 
   @Test
   func anchorInitRejectsInvalid() {
-    withPlatform(.linux) {
-      let empty: String = ""
-      expectNil(FilePath.Anchor(empty))
+    // Universal modulo separator: empty input has no anchor; "foo" is
+    // a relative component-only path (no anchor); "/foo" parses to an
+    // anchored path with components, which `Anchor.init?` rejects
+    // (anchor only, no components allowed).
+    let empty: String = ""
+    expectNil(FilePath.Anchor(empty))
 
-      let noAnchor: String = "foo"
-      expectNil(FilePath.Anchor(noAnchor))
+    let noAnchor: String = "foo"
+    expectNil(FilePath.Anchor(noAnchor))
 
-      let hasComponents: String = "/foo"
-      expectNil(FilePath.Anchor(hasComponents))
-    }
+    let hasComponents: String = "/foo"
+    expectNil(FilePath.Anchor(hasComponents))
   }
 
   // MARK: - Anchor.init? strictness vs FilePath.init? totality (Windows)
@@ -556,7 +551,10 @@ extension AllTests.ValidationTests {
 
   @Test
   func isAbsoluteExists() {
-    withPlatform(.linux) {
+    // On Windows `\foo` (the converted form of `/foo`) is the current-drive
+    // root — rooted but not fully qualified, so isAbsolute is false. The
+    // unix-side expectation is "absolute"; restrict to those.
+    withPlatforms(.linux, .darwin) {
       let abs: FilePath = "/foo"
       expectTrue(abs.isAbsolute)
 
@@ -569,7 +567,8 @@ extension AllTests.ValidationTests {
 
   @Test
   func withCodeUnitsProvidesPointerAndCount() {
-    withPlatform(.linux) {
+    // Asserts CChar-typed values; unix-only.
+    withPlatforms(.linux, .darwin) {
       let path: FilePath = "/foo/bar"
       path.withCodeUnits { ptr, count in
         expectEqual(count, 8)
@@ -584,18 +583,17 @@ extension AllTests.ValidationTests {
 
   @Test
   func withCodeUnitsEmpty() {
-    withPlatform(.linux) {
-      let path: FilePath = ""
-      path.withCodeUnits { ptr, count in
-        expectEqual(count, 0)
-        expectEqual(ptr[0], 0)
-      }
+    let path: FilePath = ""
+    path.withCodeUnits { ptr, count in
+      expectEqual(count, 0)
+      expectEqual(ptr[0], 0)
     }
   }
 
   @Test
   func withCodeUnitsNonASCII() {
-    withPlatform(.linux) {
+    // Asserts CChar-typed values and a UTF-8 byte (0xA9); unix-only.
+    withPlatforms(.linux, .darwin) {
       let path: FilePath = "/café"
       path.withCodeUnits { ptr, count in
         // "/café" is 6 UTF-8 bytes: / c a f 0xC3 0xA9
@@ -635,17 +633,13 @@ extension AllTests.ValidationTests {
 
   @Test
   func componentStringLiteralValid() {
-    withPlatform(.linux) {
-      let c: FilePath.Component = "hello"
-      expectEqual(c.description, "hello")
-    }
+    let c: FilePath.Component = "hello"
+    expectEqual(c.description, "hello")
   }
 
   @Test
   func anchorStringLiteralValid() {
-    withPlatform(.linux) {
-      let a: FilePath.Anchor = "/"
-      expectEqual(a.description, "/")
-    }
+    let a: FilePath.Anchor = "/"
+    expectEqual(a.description, universal("/"))
   }
 }
