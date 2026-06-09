@@ -40,11 +40,15 @@ let package = Package(
                 .define("FILEPATH_PACKAGE"),
                 .strictMemorySafety(),
                 .unsafeFlags(["-Werror", "StrictMemorySafety"]),
-                // Cascade stance 2a: this repo never ships, so availability
-                // enforcement protects nothing here; disable it so the honest
-                // 9999-mapped annotations compile. Real enforcement belongs to
-                // the eventual port-validation build against the stdlib tree.
-                .unsafeFlags(["-Xfrontend", "-disable-availability-checking"]),
+                // Availability enforcement is ON for this target so that
+                // file-scope decls referencing 9999-gated types must carry
+                // `@available(SwiftStdlib 9999, *)` themselves — catching
+                // port-readiness gaps locally instead of at swiftCore link
+                // time. The package never ships, so this protects only the
+                // port; that is its only purpose. The two consumers below
+                // (filepath-play, FilePathTests) keep checking disabled — they
+                // are clients of this module's 9999 API and should not need
+                // `if #available` guards on every call.
             ]
         ),
         .executableTarget(
