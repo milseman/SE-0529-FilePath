@@ -56,19 +56,31 @@ extension FilePath: ExpressibleByStringLiteral {
   /// Traps if the literal contains `NUL` or is otherwise ill-formed.
   @available(SwiftStdlib 9999, *)
   public init(stringLiteral: String) {
-    guard let path = FilePath(stringLiteral) else {
+    guard let path = FilePath(_nulValidating: stringLiteral) else {
       fatalError(
         "FilePath string literal must not contain NUL")
     }
     self = path
   }
 
+#if !FILEPATH_SYSTEM_STRING_COMPAT
   /// Creates a file path from a string.
   ///
   /// Returns `nil` if `string` contains `NUL`, which is not a valid
   /// path byte on any supported platform.
   @available(SwiftStdlib 9999, *)
   public init?(_ string: String) {
+    self.init(_nulValidating: string)
+  }
+#endif
+
+  /// NUL-validating construction from a `String`, shared by the failable
+  /// initializer and the `ExpressibleByStringLiteral` conformance. Always
+  /// present: when a consumer defines `FILEPATH_SYSTEM_STRING_COMPAT` and
+  /// replaces the public failable `init?(_:)` with a non-failable `init(_:)`,
+  /// the internal callers below still have a validating entry point.
+  @available(SwiftStdlib 9999, *)
+  internal init?(_nulValidating string: String) {
     guard !string.utf8.contains(0) else { return nil }
     self.init(_normalizing: _SystemString(string))
   }

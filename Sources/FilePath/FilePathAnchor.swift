@@ -134,7 +134,7 @@ extension FilePath.Anchor: ExpressibleByStringLiteral {
   /// not a valid anchor.
   @available(SwiftStdlib 9999, *)
   public init?(_ string: String) {
-    guard let path = FilePath(string) else { return nil }
+    guard let path = FilePath(_nulValidating: string) else { return nil }
     guard let anchor = path.anchor else { return nil }
     guard path.components.isEmpty && !path.hasTrailingSeparator else {
       return nil

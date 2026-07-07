@@ -113,7 +113,7 @@ extension FilePath.Component: ExpressibleByStringLiteral {
   @available(SwiftStdlib 9999, *)
   public init?(_ string: String) {
     guard !string.isEmpty else { return nil }
-    guard let path = FilePath(string) else { return nil }
+    guard let path = FilePath(_nulValidating: string) else { return nil }
     self.init(_validating: path)
   }
 }
