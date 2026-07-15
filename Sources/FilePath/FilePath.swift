@@ -42,6 +42,23 @@ extension FilePath {
     }
   }
 
+  /// Creates a file path by normalizing a sequence of platform code units.
+  ///
+  /// This is the non-failable construction funnel: it coalesces separators
+  /// and applies the platform's dot rules, the same normalization every
+  /// public initializer performs, but without the `NUL`-rejection of the
+  /// public initializers. The caller is responsible for ensuring the code
+  /// units contain no `NUL`.
+  ///
+  /// Underscored SPI: this is the primitive a source-compatibility layer
+  /// (e.g. swift-system's FilePath API) constructs paths through when it has
+  /// already-validated bytes and needs a non-failable, non-`Span` entry
+  /// point. It is not public API in the proposal.
+  @available(SwiftStdlib 9999, *)
+  public init<C: Sequence<FilePath.CodeUnit>>(_normalizing codeUnits: C) {
+    self.init(_normalizing: _SystemString(codeUnits))
+  }
+
   /// The platform's canonical directory separator, as a code unit.
   ///
   /// On Linux and Darwin, this is the code unit for `/`.

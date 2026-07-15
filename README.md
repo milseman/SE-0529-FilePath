@@ -26,30 +26,26 @@ That totality is a property of `FilePath.init?` specifically. The typed `FilePat
 
 ## Try it out
 
+`filepath-play` decomposes a path on the platform it was built for — a build targets exactly one platform (Darwin on macOS, Linux on Linux, Windows on Windows), so the tool reports that platform's decomposition. Pass one or more paths:
+
 ```
-swift run filepath-play '/usr/local/bin' 'C:\Users\Admin\' '/.vol/1234/5678/file'
+swift run filepath-play '/usr/local/bin' '/.vol/1234/5678/file' '/foo/..namedfork/rsrc'
 ```
 
-Each path is decomposed across all three platforms. The summary line shows `anchor | components | suffix`:
+The summary line for each shows `anchor | components | suffix` (a fuller detail block follows it). On a macOS (Darwin) build:
 
 ```
 input: "/usr/local/bin"
-  ═══ linux ═══   "/" | "usr", "local", "bin" | (none)
   ═══ darwin ═══  "/" | "usr", "local", "bin" | (none)
-  ═══ windows ═══ "\" | "usr", "local", "bin" | (none)
-
-input: "C:\Users\Admin\"
-  ═══ linux ═══   (none) | "C:\Users\Admin\" | (none)
-  ═══ darwin ═══  (none) | "C:\Users\Admin\" | (none)
-  ═══ windows ═══ "C:\"  | "Users", "Admin"  | trailing separator
 
 input: "/.vol/1234/5678/file"
-  ═══ linux ═══   "/"               | ".vol", "1234", "5678", "file" | (none)
-  ═══ darwin ═══  "/.vol/1234/5678" | "file"                         | (none)
-  ═══ windows ═══ "\"               | ".vol", "1234", "5678", "file" | (none)
+  ═══ darwin ═══  "/.vol/1234/5678" | "file" | (none)
+
+input: "/foo/..namedfork/rsrc"
+  ═══ darwin ═══  "/" | "foo" | /..namedfork/rsrc
 ```
 
-Run with no arguments for an interactive prompt. Run `swift test` to exercise all platforms.
+The `/.vol/…` volfs anchor and the `..namedfork/rsrc` resource-fork suffix are Darwin-specific; a Windows build instead decomposes drive, UNC, and verbatim (`\\?\`) roots. Run with no arguments for an interactive prompt.
 
 ## What's implemented
 
@@ -66,11 +62,10 @@ The full public surface described in the proposal:
 - String bridging — `String.init(decoding:)`, `String.init?(validating:)`, `description`, `debugDescription`
 - Equality / comparison — `Hashable`, `Comparable` on all types
 - Code unit access — `withCodeUnits(_:)` (closure-based pointer + count, for C interop); `Span`-based byte access: `codeUnits` getters on `FilePath`, `Component`, `Anchor`, and `ComponentView` (plus `nullTerminatedCodeUnits` on `FilePath`), and `init?(codeUnits:)` on `FilePath` and `Component`
-- Platform switching — `REVIEW_ONLY_Platform`, `REVIEW_ONLY_platform` static var
+- `resolve()` — filesystem real-path resolution via a per-platform syscall (`getattrlistat` on Darwin, `realpath` on Linux, `CreateFileW` + `GetFinalPathNameByHandleW` on Windows)
 
 ## What's stubbed
 
-- **`resolve()`** — `preconditionFailure("not yet implemented")`. Resolution requires filesystem access; semantics vary by platform.
 - **`OutputSpan`-based `init(capacity:initializingCodeUnitsWith:)`** — stubbed; `OutputSpan` requires experimental features not enabled in this build. The read-side `Span` API (`codeUnits` / `nullTerminatedCodeUnits` / `init?(codeUnits:)`) *is* implemented, via the `Lifetimes` experimental feature.
 - **`Component.init?(verbatim:)`** — Windows-only; not yet implemented in this cross-platform reference. This initializer exists to construct components containing `/` (a legal filename character inside `\\?\` paths).
 
@@ -78,7 +73,7 @@ The full public surface described in the proposal:
 
 - **Double slashes within Darwin anchor structures (resolved — settled behavior)**: Paths like `/.vol//1234/5678`, `/.resolve//1/foo`, and `/foo/..namedfork//rsrc` carry a double slash inside what would otherwise be an anchor or suffix structure. Per the emergent-semantics model above, they coalesce and re-parse: `/.vol//1234/5678` → `/.vol/1234/5678` (volfs anchor), `/.resolve//1/foo` → `/.resolve/1/foo` → canonicalizes to `/.nofollow/foo`, and `/foo/..namedfork//rsrc` → `/foo/..namedfork/rsrc` (a resource fork). The coalesced form is the only form the kernel ever sees, so there is no separate question of how the kernel treats the double slash. These inputs are **not** rejected or special-cased (only `NUL` is rejected), and the test data reflects the coalesced results.
 
-- **Degenerate Windows UNC paths**: Paths like `\\server` (no share), `\\` (bare double backslash), and `\\server\` (server but no share name) are commented out in the test data as "behavior TBD."
+- **Degenerate Windows UNC paths (resolved — settled behavior)**: Paths like `\\` (bare double backslash), `\\server` (no share), and `\\\server\share` (3+ leading backslashes) follow the same emergent model. `FilePath.init?` is total and coalesces each into a degraded anchor — e.g. `\\\server\share` decomposes to a `\` root with `server` and `share` as components, and `\\server` to a `\\server\`-style root — while the stricter typed `FilePath.Anchor.init?` returns `nil` for the incomplete UNC forms (see "`Anchor.init?` is strict" above). These are pinned by `ValidationTests` and characterized in `ProbeTests`.
 
 - **Reparse after component mutation (resolved — documented behavior)**: **The anchor of the result follows from whatever the path string is after mutation.** `ComponentView` operations splice bytes within `self._storage`'s post-anchor region; the anchor bytes are physically untouched, so the path's anchor changes only via re-decomposition of the resulting string. Concretely:
 
@@ -94,11 +89,7 @@ The full public surface described in the proposal:
 
 ## Test results
 
-```
-Linux:   all passing
-Darwin:  all passing
-Windows: all passing
-```
+`swift test` passes on all three platforms — Linux, Darwin, and Windows. A build validates the platform it was compiled for; the other platforms' tests run inert (they pass without asserting), so full coverage means building and testing on each platform.
 
 ## License
 
