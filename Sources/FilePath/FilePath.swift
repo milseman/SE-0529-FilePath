@@ -73,6 +73,148 @@ extension FilePath {
   public var isEmpty: Bool { _storage.isEmpty }
 }
 
+// MARK: - Lexical normalization
+
+@available(SwiftStdlib 9999, *)
+extension FilePath {
+  /// Lexically normalize this path in place. Purely lexical: it consults
+  /// only the path's own bytes, never the file system, so a result that
+  /// resolves `..` may not match what following symlinks would produce.
+  ///
+  /// Each flag selects one independent aspect of normalization. The anchor
+  /// is never altered; only the relative components are folded.
+  ///
+  /// - `removeCurrentDirectory`: drop every `.` (current-directory)
+  ///   component.
+  /// - `collapseParentDirectory`: resolve each `..` (parent-directory)
+  ///   component against a preceding regular component, dropping both. A
+  ///   `..` with nothing to resolve is dropped when the path is rooted (it
+  ///   cannot climb above the anchor) and preserved when the path is
+  ///   rootless — a leading run of `..` on a relative path survives, since
+  ///   a `..` never resolves another `..`.
+  /// - `removeTrailingSeparator`: drop a trailing directory separator from
+  ///   the relative portion (a structural separator belonging to the anchor
+  ///   is left in place).
+  ///
+  /// In a Windows verbatim path (`\\?\…`), `.` and `..` are ordinary
+  /// component names, so the two dot flags leave them untouched.
+  ///
+  /// Underscored SPI: the low-level primitive that source-compatibility
+  /// layers and higher-level normalization API build on. `.` -dropping and
+  /// `..` -collapsing legacy lexical normalization is all three flags set.
+  /// Not public API in the proposal.
+  @available(SwiftStdlib 9999, *)
+  public mutating func _lexicallyNormalize(
+    removeCurrentDirectory: Bool,
+    collapseParentDirectory: Bool,
+    removeTrailingSeparator: Bool
+  ) {
+    let src = _storage
+    guard !src.isEmpty else { return }
+
+    let verbatim = _isVerbatimComponentPath(src)
+    let (rootEnd, relBegin) = src._parseRoot()
+
+    // "Rooted" here means: does an underflowing `..` get dropped? Only when
+    // there is an anchor it cannot climb above. The Windows drive-relative
+    // form `C:` is not such an anchor (`C:..` is meaningful), matching the
+    // construction funnel's notion of rooted.
+    let rooted: Bool
+    if rootEnd == src.startIndex {
+      rooted = false
+    } else if _isWindows {
+      rooted = !_isDriveRelativeAnchor(src[src.startIndex..<rootEnd])
+    } else {
+      rooted = true
+    }
+
+    // result = anchor + gap, then the folded relative components. `relBegin`
+    // already includes the gap separator, so the first appended component
+    // needs no separator before it. Components are appended without a
+    // trailing separator, so during the walk the byte before `result`'s end
+    // is always a component byte.
+    var result = _SystemString()
+    result.append(contentsOf: src[..<relBegin])
+    let prefixEnd = result.endIndex
+
+    var lastComponentStart = prefixEnd
+    var appendedAny = false
+    var sourceHadTrailingSep = false
+
+    var readIdx = relBegin
+    let end = src.endIndex
+    while readIdx < end {
+      // Storage is coalesced, so separators are single; one at the end of the
+      // range is a trailing separator on the relative portion.
+      if _isSeparator(src[readIdx]) {
+        let next = src.index(after: readIdx)
+        if next >= end { sourceHadTrailingSep = true }
+        readIdx = next
+        continue
+      }
+
+      let compStart = readIdx
+      while readIdx < end && !_isSeparator(src[readIdx]) {
+        readIdx = src.index(after: readIdx)
+      }
+      let compEnd = readIdx
+      let compLen = src.distance(from: compStart, to: compEnd)
+
+      // In a verbatim path `.` and `..` are ordinary component names.
+      let isDot =
+        !verbatim && compLen == 1 && src[compStart] == ._dot
+      let isDotDot =
+        !verbatim && compLen == 2 && src[compStart] == ._dot
+        && src[src.index(after: compStart)] == ._dot
+
+      if isDot {
+        if removeCurrentDirectory { continue }
+      } else if isDotDot && collapseParentDirectory {
+        // Resolve against the last appended component if it is regular. The
+        // only non-regular thing we ever append is a `..` (rootless case),
+        // which a `..` cannot resolve.
+        var poppable = false
+        if appendedAny {
+          let len = result.distance(from: lastComponentStart, to: result.endIndex)
+          let lastIsDotDot =
+            len == 2 && result[lastComponentStart] == ._dot
+            && result[result.index(after: lastComponentStart)] == ._dot
+          poppable = !lastIsDotDot
+        }
+        if poppable {
+          // Drop the last component and the separator that precedes it.
+          var cut = lastComponentStart
+          if cut > prefixEnd { cut = result.index(before: cut) }
+          result.removeSubrange(cut..<result.endIndex)
+          // Re-derive the new last component's start by scanning back over
+          // its bytes (bounded by the anchor prefix).
+          var i = result.endIndex
+          while i > prefixEnd
+                && !_isSeparator(result[result.index(before: i)]) {
+            result.formIndex(before: &i)
+          }
+          lastComponentStart = i
+          appendedAny = result.endIndex > prefixEnd
+          continue
+        }
+        if rooted { continue }
+        // Rootless underflow: fall through and preserve the `..`.
+      }
+
+      if result.endIndex > prefixEnd { result.append(_platformSeparator) }
+      lastComponentStart = result.endIndex
+      result.append(contentsOf: src[compStart..<compEnd])
+      appendedAny = true
+    }
+
+    if sourceHadTrailingSep && !removeTrailingSeparator && appendedAny {
+      result.append(_platformSeparator)
+    }
+
+    _storage = result
+  }
+}
+
 // MARK: - Per-platform normalization
 
 @available(SwiftStdlib 9999, *)

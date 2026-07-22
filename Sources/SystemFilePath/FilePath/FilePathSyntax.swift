@@ -368,12 +368,18 @@ extension FilePath {
   /// * `"../local/bin".isLexicallyNormal   == true`
   /// * `"local/bin/..".isLexicallyNormal   == false`
   public var isLexicallyNormal: Bool {
+    // Must agree with `lexicallyNormalize()`: a path is lexically normal iff
+    // normalizing is a no-op. `lexicallyNormalize()` strips a trailing
+    // separator, so a path carrying one is not normal even when its component
+    // kinds are all fine, e.g. `/tmp/` -> `/tmp`.
+    //
     // `..` components are permitted at the front of a
     // relative path, otherwise there should be no special directories
     //
     // FIXME: Windows `C:..\foo\bar` should probably be lexically normal, but
     // `\..\foo\bar` should not.
-    components.drop(
+    if hasTrailingSeparator { return false }
+    return components.drop(
       while: { root == nil && $0.kind == .parentDirectory }
     ).allSatisfy { $0.kind == .regular }
   }

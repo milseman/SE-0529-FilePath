@@ -21,26 +21,71 @@ import FilePath
 // invariant-validating decoder), so encoding through it reproduces the old
 // bytes exactly.
 //
-// TODO: double-check Codable compatibility end to end. The FilePath decoder
-// below is deliberately WIDER than the old one: old rejected non-normal
-// `_storage`, this normalizes it instead. That direction is safe for
-// old-encoded -> new-decoded, but it means new accepts payloads old refused,
-// and a value's decoded byte spelling can differ from the spelling it was
-// encoded from, because new normalization is not old normalization (trailing
-// separators preserved, rooted leading `.` dropped). Worth confirming against
-// real archives before this ships.
+// Forward-compat side channel (`_v2`). The new FilePath can carry a trailing
+// separator, which the historical `_storage` decoder rejects. So `_storage`
+// stays in the historical (separator-stripped) form old decoders accept, and
+// new-only distinctions travel in a sibling `_v2` object old decoders ignore:
+//
+//   { "_storage": <stripped SystemString>,
+//     "_v2": { "hasTrailingSeparator": <bool> } }
+//
+// `_v2` is append-only: decode each field with `decodeIfPresent` and default
+// when absent, never remove or repurpose a field, and always emit `_v2` (no
+// omit-when-default branch to keep in sync). That yields new->old (old reads
+// `_storage`, ignores `_v2`), old->new (no `_v2`, fields default), and
+// new->new (full fidelity).
+//
+// `hasTrailingSeparator` covers the removable trailing separator (`/tmp/foo`
+// vs `/tmp/foo/`) only; a structural anchor separator (`\\server\share\`)
+// stays in `_storage`, so the flag is false and old still reads it correctly.
+//
+// TODO: validate against real archives. The decoder also normalizes
+// non-normal `_storage` the historical one rejected (safe for old->new). Other
+// new-only forms with no old equivalent (Darwin resource forks, canonicalized
+// `.vol`/`.nofollow` anchors) are out of scope for `_v2`.
 
 @available(System 0.0.1, *)
 extension FilePath: Codable {
   private enum CodingKeys: String, CodingKey {
     case _storage
+    case _v2
+  }
+
+  // Append-only side channel; see the contract above.
+  private struct _V2: Codable {
+    var hasTrailingSeparator: Bool = false
+
+    private enum CodingKeys: String, CodingKey {
+      case hasTrailingSeparator
+    }
+
+    init(hasTrailingSeparator: Bool) {
+      self.hasTrailingSeparator = hasTrailingSeparator
+    }
+
+    init(from decoder: any Decoder) throws {
+      let c = try decoder.container(keyedBy: CodingKeys.self)
+      // Every field defaulted when absent, per the append-only contract.
+      self.hasTrailingSeparator =
+        try c.decodeIfPresent(Bool.self, forKey: .hasTrailingSeparator)
+        ?? false
+    }
   }
 
   public func encode(to encoder: any Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
-    // Historical wire format: { "_storage": SystemString }. Built from the
-    // path's public code units.
-    try container.encode(_systemStringStorage, forKey: ._storage)
+
+    // Keep `_storage` in old-normal form so old decoders accept it: strip the
+    // removable trailing separator, if any. Structural anchor separators are
+    // not removable and stay in `_storage` (the setter no-ops on them), so
+    // `stripped != self` is true only for the removable case.
+    let stripped = withoutTrailingSeparator()
+    let hadTrailingSeparator = (stripped != self)
+    try container.encode(stripped._systemStringStorage, forKey: ._storage)
+
+    // Always emit `_v2` (append-only contract; no omit-when-default check).
+    try container.encode(
+      _V2(hasTrailingSeparator: hadTrailingSeparator), forKey: ._v2)
   }
 
   public init(from decoder: any Decoder) throws {
@@ -50,10 +95,18 @@ extension FilePath: Codable {
     // untrusted input, matching the old explicit FilePath decoder.
     //
     // Construction goes through the stdlib copy's normalizing funnel: every
-    // payload the old decoder accepted still decodes, but the stored byte
-    // spelling is the copy's normal form, which can differ from the encoded
-    // spelling.
-    self.init(storage)
+    // payload the old decoder accepted still decodes. The stored byte spelling
+    // is the copy's normal form (which for old-normal input matches).
+    var path = FilePath(storage)
+
+    // Absent `_v2` (old / v1 archives) defaults every field, reproducing old
+    // behavior. Present `_v2` re-applies the new-only distinctions.
+    if let v2 = try container.decodeIfPresent(_V2.self, forKey: ._v2) {
+      if v2.hasTrailingSeparator {
+        path.hasTrailingSeparator = true
+      }
+    }
+    self = path
   }
 }
 

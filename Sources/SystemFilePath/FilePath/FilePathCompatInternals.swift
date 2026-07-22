@@ -64,16 +64,18 @@ extension FilePath {
     hasTrailingSeparator = false
   }
 
-  /// Lexically collapse `.` and `..` components in place.
+  /// Lexically collapse `.` and `..` components in place, matching
+  /// swift-system's legacy `lexicallyNormalize()`: drop `.`, resolve `..`
+  /// against preceding regular components, and drop any trailing separator.
+  ///
+  /// This is the legacy configuration of `FilePath._lexicallyNormalize` —
+  /// all three aspects enabled.
   internal mutating func _normalizeSpecialDirectories() {
-    // PORT-TODO: no stdlib-copy equivalent. The copy normalizes at
-    // construction (`_SystemString._normalizeDots`) but deliberately
-    // PRESERVES `..`, whereas the old `_normalizeSpecialDirectories`
-    // lexically resolved `..` against preceding components (this is what
-    // `lexicallyNormalize()` relied on). The copy exposes no lexical-collapse
-    // primitive, so this needs a real port; left unimplemented rather than
-    // inventing semantics.
-    fatalError(
-      "PORT-TODO: _normalizeSpecialDirectories has no stdlib-copy equivalent")
+    guard !isLexicallyNormal else { return }
+    defer { assert(isLexicallyNormal) }
+    _lexicallyNormalize(
+      removeCurrentDirectory: true,
+      collapseParentDirectory: true,
+      removeTrailingSeparator: true)
   }
 }
